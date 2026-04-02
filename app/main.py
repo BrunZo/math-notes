@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import fitz  # pymupdf
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from typing import Annotated
@@ -18,7 +19,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 _TEMPLATES = Path(__file__).parent.parent / "templates"
 _INDEX_HTML = _TEMPLATES / "index.html"
@@ -86,11 +87,23 @@ async def create_job(
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
     saved = []
-    for page, f in enumerate(files, start=1):
-        suffix = Path(f.filename).suffix.lower() if f.filename else ".jpg"
-        dest = inbox_dir / f"{lecture_num:02d}_{page:02d}{suffix}"
-        dest.write_bytes(await f.read())
-        saved.append(dest.name)
+    page = 1
+    for f in files:
+        raw = await f.read()
+        if f.content_type == "application/pdf":
+            pdf_doc = fitz.open(stream=raw, filetype="pdf")
+            for pdf_page in pdf_doc:
+                pix = pdf_page.get_pixmap(dpi=200)
+                dest = inbox_dir / f"{lecture_num:02d}_{page:02d}.png"
+                dest.write_bytes(pix.tobytes("png"))
+                saved.append(dest.name)
+                page += 1
+        else:
+            suffix = Path(f.filename).suffix.lower() if f.filename else ".jpg"
+            dest = inbox_dir / f"{lecture_num:02d}_{page:02d}{suffix}"
+            dest.write_bytes(raw)
+            saved.append(dest.name)
+            page += 1
 
     (inbox_dir / f"{lecture_stem}.batch").write_text("\n".join(sorted(saved)))
     (inbox_dir / f"{lecture_stem}.fidelity").write_text(fidelity)
