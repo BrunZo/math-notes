@@ -4,10 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### Run the server
+### Run the server (Docker)
 ```bash
-source .venv/bin/activate
-python server.py           # starts at http://localhost:8000
+docker compose up --build       # foreground, with build
+docker compose up --build -d    # background
+docker compose logs -f          # follow logs
+docker compose down             # stop
 ```
 
 ### Parse images to LaTeX

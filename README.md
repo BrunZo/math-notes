@@ -2,60 +2,42 @@
 
 A self-contained web service that accepts images of handwritten university notes, transcribes them to LaTeX via the Anthropic API, compiles the results with Tectonic, and serves the output as PDFs organized by course.
 
-## System dependencies
+## Prerequisites
 
-Install these before anything else:
-
-**Tectonic** (LaTeX compiler):
-```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://drop.xz.tools/install.sh | sh
-```
-
-**Python 3.12** (via deadsnakes PPA if not present):
-```bash
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt update && sudo apt install python3.12 python3.12-venv
-```
+- [Docker](https://docs.docker.com/engine/install/) with the Compose plugin (`docker compose`)
 
 ## Setup
 
 ```bash
-git clone ... && cd notes-pipeline
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # then fill in values
-sudo mkdir -p /srv/notes/{inbox,output,.tectonic-cache}
-sudo chown -R ubuntu:ubuntu /srv/notes
-python -c "from app.db import init_db; init_db()"
+git clone ... && cd math-notes-viz
+cp .env.example .env   # fill in SECRET_TOKEN and ANTHROPIC_API_KEY
 ```
 
 ## Running locally
 
-Open two terminals:
-
 ```bash
-# Terminal 1 — API server
-source .venv/bin/activate
-uvicorn app.main:app --reload
-
-# Terminal 2 — Worker
-source .venv/bin/activate
-python -m app.worker
+docker compose up --build
 ```
 
-## Deploying with systemd
+The API is available at `http://localhost:8000`. Data is persisted in `/srv/notes` on the host (configurable via `NOTES_DIR` in your environment or `.env`).
+
+To run in the background:
 
 ```bash
-sudo cp systemd/*.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now notes-api notes-worker
+docker compose up --build -d
+docker compose logs -f          # follow logs
+docker compose down             # stop
 ```
 
-View logs:
+## Deploying to the server
+
+SSH into the server and run:
+
 ```bash
-journalctl -u notes-api -f
-journalctl -u notes-worker -f
+bash deploy.sh
 ```
+
+See [`deploy.sh`](deploy.sh) for the `REPO_DIR` variable if your checkout is not at `~/code/math-notes-viz`.
 
 ## API usage
 
