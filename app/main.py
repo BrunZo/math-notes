@@ -74,6 +74,14 @@ async def create_job(
         if f.content_type not in _ALLOWED_TYPES:
             raise HTTPException(status_code=415, detail=f"Unsupported media type: {f.content_type}")
 
+    lecture_stem = f"{lecture_num:02d}"
+    tex_path = settings.OUTPUT_DIR / course_id / f"{lecture_stem}.tex"
+    if tex_path.exists():
+        raise HTTPException(status_code=409, detail=f"Lecture {lecture_stem} already has a .tex file for course '{course_id}'")
+    batch_path = settings.INBOX_DIR / course_id / f"{lecture_stem}.batch"
+    if batch_path.exists():
+        raise HTTPException(status_code=409, detail=f"Lecture {lecture_stem} is already pending for course '{course_id}'")
+
     inbox_dir = settings.INBOX_DIR / course_id
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
@@ -84,7 +92,6 @@ async def create_job(
         dest.write_bytes(await f.read())
         saved.append(dest.name)
 
-    lecture_stem = f"{lecture_num:02d}"
     (inbox_dir / f"{lecture_stem}.batch").write_text("\n".join(sorted(saved)))
     (inbox_dir / f"{lecture_stem}.fidelity").write_text(fidelity)
 
