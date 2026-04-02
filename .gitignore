@@ -1,0 +1,25 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Secrets
+.env
+
+# Vim swap files
+*.swp
+*.swo
+
+# Runtime data
+inbox/
+output/
+.tectonic-cache/
+
+# Build artifacts
+*.pdf
+*.db

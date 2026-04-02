@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+tex_files/
+handwritten/
+*.db
+*.pdf
+parsing/
+systemd/
+PLAN.md
+.tectonic-cache/
+tex_notes/

@@ -1,0 +1,87 @@
+\documentclass[reqno,11pt]{amsbook}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+%\usepackage[spanish,es-noquoting,es-tabla]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{mathtools,amssymb,mathrsfs}
+\usepackage{enumitem}
+\usepackage[x11names]{xcolor}
+\usepackage[colorlinks=true,allcolors= Blue4,bookmarksopen= true,
+bookmarksopenlevel=0]{hyperref}
+\usepackage[a4paper,margin=2.54cm]{geometry}
+\usepackage{tikz}
+\usepackage{float}
+\usepackage{hyperref}
+\usetikzlibrary{arrows.meta, calc, decorations.markings, decorations.pathreplacing, babel}
+
+%    For use when working on individual chapters
+%\includeonly{}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Nombres de las cosas en español
+\renewcommand{\bibname}{Bibliografía}
+\renewcommand{\contentsname}{Índice general}
+\renewcommand{\chaptername}{Clase}
+\renewcommand{\proofname}{Demostración}
+\renewcommand{\partname}{Parte}
+\renewcommand{\appendixname}{Apéndice}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\setcounter{tocdepth}{2}
+\numberwithin{equation}{chapter}
+\allowdisplaybreaks
+
+
+\newtheorem{theorem}{Teorema}[chapter]
+\newtheorem*{theorem*}{Teorema}
+\newtheorem{proposition}[theorem]{Proposición}
+\newtheorem{lemma}[theorem]{Lema}
+\newtheorem{corollary}[theorem]{Corolario}
+\newtheorem{conjecture}[theorem]{Conjetura}
+\newtheorem*{conjecture*}{Conjetura}
+
+\theoremstyle{definition}
+\newtheorem*{definition}{Definición}
+\newtheorem*{example}{Ejemplo}
+\newtheorem{exercise}{Ejercicio}
+\renewcommand{\theexercise}{\Roman{exercise}}
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Observación}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\abs}[1]{\lvert #1 \rvert}
+
+\makeindex
+
+\begin{document}
+
+\frontmatter
+
+\title{ {{- course_name -}} }
+\date{}
+
+\maketitle
+
+\setcounter{page}{2}
+
+\tableofcontents
+
+
+\mainmatter
+
+{% for tex_path in tex_paths %}
+\input{ {{- tex_path -}} }
+{% endfor %}
+
+
+\backmatter
+
+\end{document}

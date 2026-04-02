@@ -1,0 +1,15 @@
+[Unit]
+Description=Notes Pipeline Worker
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/notes-pipeline
+EnvironmentFile=/opt/notes-pipeline/.env
+ExecStart=/opt/notes-pipeline/.venv/bin/python -m app.worker
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="page-title">Lectures</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; max-width: 860px; margin: 0 auto; }
+
+    /* Header */
+    .top-bar { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .back-link { font-size: 0.85rem; color: #666; text-decoration: none; }
+    .back-link:hover { color: #222; }
+    h1 { font-size: 1.4rem; }
+    .actions { margin-left: auto; }
+    .btn-download {
+      padding: 0.45rem 1rem; border: none; border-radius: 4px; cursor: pointer;
+      font-size: 0.9rem; background: #333; color: #fff; text-decoration: none;
+      display: inline-block;
+    }
+    .btn-download:hover { background: #555; }
+
+    /* Index */
+    .lecture-index { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+    .lecture-index h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin-bottom: 0.6rem; }
+    .lecture-index ol { padding-left: 1.4rem; font-size: 0.9rem; line-height: 1.8; }
+    .lecture-index a { color: #333; text-decoration: none; }
+    .lecture-index a:hover { text-decoration: underline; }
+
+    /* Lecture sections */
+    .lecture { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .lecture-heading { font-size: 1rem; font-weight: 700; color: #555; text-transform: uppercase;
+                       letter-spacing: 0.06em; margin-bottom: 1.25rem; padding-bottom: 0.5rem;
+                       border-bottom: 2px solid #e0e0e0; }
+    .lecture h2 { font-size: 1.1rem; margin: 1.2rem 0 0.5rem; }
+    .lecture h3 { font-size: 0.95rem; margin: 1rem 0 0.4rem; color: #444; }
+    .lecture p { line-height: 1.7; margin-bottom: 0.75rem; font-size: 0.95rem; }
+    .lecture ul, .lecture ol { padding-left: 1.5rem; margin-bottom: 0.75rem; font-size: 0.95rem; line-height: 1.7; }
+
+    /* Chapter heading */
+    .chapter-title { font-size: 1.3rem; font-weight: 700; margin: 0.5rem 0 1rem; }
+
+    /* Custom LaTeX environments */
+    .env-box { border-left: 4px solid; border-radius: 0 4px 4px 0; padding: 0.6rem 0.9rem; margin: 0.75rem 0; font-size: 0.93rem; }
+    .env-label { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+    .env-definition, .env-definicion { border-color: #3b82f6; background: #eff6ff; }
+    .env-definition .env-label, .env-definicion .env-label { color: #1d4ed8; }
+    .env-theorem, .env-proposition, .env-lemma, .env-corollary, .env-conjecture,
+    .env-teorema, .env-proposicion, .env-corolario, .env-lema
+                     { border-color: #16a34a; background: #f0fdf4; }
+    .env-theorem .env-label, .env-proposition .env-label,
+    .env-lemma .env-label, .env-corollary .env-label, .env-conjecture .env-label,
+    .env-teorema .env-label, .env-proposicion .env-label,
+    .env-corolario .env-label, .env-lema .env-label { color: #166534; }
+    .env-proof, .env-demostracion { border-color: #9ca3af; background: #f9fafb; font-style: italic; }
+    .env-proof .env-label, .env-demostracion .env-label { color: #6b7280; font-style: normal; }
+    .env-example, .env-remark, .env-exercise,
+    .env-ejemplo, .env-observacion { border-color: #f59e0b; background: #fffbeb; }
+    .env-example .env-label, .env-remark .env-label, .env-exercise .env-label,
+    .env-ejemplo .env-label, .env-observacion .env-label { color: #92400e; }
+
+    .tikz-placeholder { background: #f3f4f6; border: 1px dashed #9ca3af; border-radius: 4px;
+                        padding: 0.5rem 0.75rem; font-size: 0.8rem; color: #6b7280;
+                        font-style: italic; margin: 0.5rem 0; }
+
+    .err { color: #c0392b; font-size: 0.9rem; }
+    #loading { color: #888; font-size: 0.9rem; }
+  </style>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        packages: {'[+]': ['ams', 'mathrsfs']},
+        tags: 'ams',
+        macros: {
+          N: '\\mathbb{N}',
+          Z: '\\mathbb{Z}',
+          Q: '\\mathbb{Q}',
+          R: '\\mathbb{R}',
+          C: '\\mathbb{C}',
+          eps: '\\varepsilon',
+          li: '\\operatorname{li}',
+          mcd: '\\operatorname{mcd}',
+          sqfree: '\\operatorname{sqfree}',
+          1: '\\mathbf{1}',
+          Re: '\\operatorname{Re}',
+          calD: '\\mathcal{D}',
+          abs: ['\\lvert #1 \\rvert', 1],
+        },
+      },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] },
+      startup: { typeset: false },
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+</head>
+<body>
+  <div class="top-bar">
+    <a class="back-link" href="/">← Back</a>
+    <h1 id="course-title">…</h1>
+    <div class="actions">
+      <a id="pdf-link" class="btn-download" href="#">Download PDF</a>
+    </div>
+  </div>
+
+  <div class="lecture-index" id="index-box" style="display:none">
+    <h2>Lectures</h2>
+    <ol id="index-list"></ol>
+  </div>
+
+  <div id="loading">Loading lectures…</div>
+  <div id="content"></div>
+
+  <script>
+    const courseId = window.location.pathname.split('/')[2];
+    document.getElementById('pdf-link').href = `/courses/${courseId}/pdf`;
+
+    fetch('/courses')
+      .then(r => r.json())
+      .then(courses => {
+        const course = courses.find(c => c.id === courseId);
+        const name = course ? course.name : courseId;
+        document.title = name + ' — Lectures';
+        document.getElementById('course-title').textContent = name;
+      })
+      .catch(() => {
+        document.title = courseId + ' — Lectures';
+        document.getElementById('course-title').textContent = courseId;
+      });
+
+    // --- LaTeX → HTML pre-processor ---
+
+    const ENV_LABELS = {
+      // preamble English names
+      theorem: 'Teorema', 'theorem*': 'Teorema',
+      proposition: 'Proposición',
+      lemma: 'Lema',
+      corollary: 'Corolario',
+      conjecture: 'Conjetura', 'conjecture*': 'Conjetura',
+      definition: 'Definición',
+      example: 'Ejemplo',
+      exercise: 'Ejercicio',
+      proof: 'Demostración',
+      remark: 'Observación',
+      // legacy Spanish names
+      definicion: 'Definición', teorema: 'Teorema', proposicion: 'Proposición',
+      corolario: 'Corolario', lema: 'Lema', demostracion: 'Demostración',
+      ejemplo: 'Ejemplo', observacion: 'Observación',
+    };
+    const KNOWN_ENVS = Object.keys(ENV_LABELS).map(e => e.replace('*', '\\*')).join('|');
+
+    function processLatex(tex) {
+      // 1. Strip comments
+      tex = tex.replace(/(?<!\\)%.*$/gm, '');
+
+      // 2. Strip \label{} (leaves no useful output in HTML)
+      tex = tex.replace(/\\label\{[^}]+\}/g, '');
+
+      // 3. figure blocks → placeholder (captures tikzpicture inside too)
+      tex = tex.replace(/\\begin\{figure\}[\s\S]*?\\end\{figure\}/g,
+        '<div class="tikz-placeholder">[Figure — not rendered]</div>');
+
+      // 4. Bare TikZ blocks (outside figure)
+      tex = tex.replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/g,
+        '<div class="tikz-placeholder">[TikZ diagram — not rendered]</div>');
+
+      // 5. Custom environments → styled divs
+      tex = tex.replace(
+        new RegExp(`\\\\begin\\{(${KNOWN_ENVS})\\}([\\s\\S]*?)\\\\end\\{\\1\\}`, 'g'),
+        (_, env, body) => {
+          const label = ENV_LABELS[env] || env;
+          const cls = env.replace('*', '');
+          return `<div class="env-box env-${cls}"><div class="env-label">${label}</div>${processLatex(body.trim())}</div>`;
+        }
+      );
+
+      // 6. equation / align / gather → keep as display math for MathJax
+      tex = tex.replace(/\\begin\{(equation\*?|align\*?|gather\*?|multline\*?)\}([\s\S]*?)\\end\{\1\}/g,
+        (m) => `<p>${m}</p>`);
+
+      // 7. \chapter / \section / \subsection
+      tex = tex.replace(/\\chapter\*?\{([^}]+)\}/g, '<h2 class="chapter-title">$1</h2>');
+      tex = tex.replace(/\\section\*?\{([^}]+)\}/g, '<h2>$1</h2>');
+      tex = tex.replace(/\\subsection\*?\{([^}]+)\}/g, '<h3>$1</h3>');
+      tex = tex.replace(/\\subsubsection\*?\{([^}]+)\}/g, '<h4>$1</h4>');
+
+      // 8. itemize / enumerate
+      tex = tex.replace(/\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/g, (_, body) =>
+        '<ul>' + body.replace(/\\item\s*/g, '<li>').replace(/<li>([\s\S]*?)(?=<li>|$)/g, '<li>$1</li>') + '</ul>');
+      tex = tex.replace(/\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/g, (_, body) =>
+        '<ol>' + body.replace(/\\item\s*/g, '<li>').replace(/<li>([\s\S]*?)(?=<li>|$)/g, '<li>$1</li>') + '</ol>');
+
+      // 9. Text formatting
+      tex = tex.replace(/\\textbf\{([^}]+)\}/g, '<strong>$1</strong>');
+      tex = tex.replace(/\\emph\{([^}]+)\}/g, '<em>$1</em>');
+      tex = tex.replace(/\\textit\{([^}]+)\}/g, '<em>$1</em>');
+      tex = tex.replace(/\\underline\{([^}]+)\}/g, '<u>$1</u>');
+
+      // 10. Paragraph breaks (double newline → <p>)
+      tex = tex.replace(/\n{2,}/g, '</p><p>');
+      tex = '<p>' + tex + '</p>';
+      // Clean up empty paragraphs
+      tex = tex.replace(/<p>\s*<\/p>/g, '');
+
+      return tex;
+    }
+
+    async function loadLectures() {
+      const loading = document.getElementById('loading');
+      const content = document.getElementById('content');
+      try {
+        const r = await fetch(`/courses/${courseId}/lectures`);
+        if (!r.ok) {
+          const d = await r.json();
+          loading.innerHTML = `<span class="err">Error ${r.status}: ${d.detail}</span>`;
+          return;
+        }
+        const lectures = await r.json();
+        loading.remove();
+
+        if (!lectures.length) {
+          content.innerHTML = '<p style="color:#888;font-size:.9rem">No lectures yet.</p>';
+          return;
+        }
+
+        // Build index
+        const indexBox = document.getElementById('index-box');
+        const indexList = document.getElementById('index-list');
+        indexBox.style.display = '';
+        lectures.forEach(lec => {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = `#lec-${lec.lecture_num}`;
+          a.textContent = `Lecture ${lec.lecture_num}`;
+          li.appendChild(a);
+          indexList.appendChild(li);
+        });
+
+        // Render each lecture
+        const fragment = document.createDocumentFragment();
+        lectures.forEach(lec => {
+          const sec = document.createElement('section');
+          sec.className = 'lecture';
+          sec.id = `lec-${lec.lecture_num}`;
+          const heading = document.createElement('div');
+          heading.className = 'lecture-heading';
+          heading.textContent = `Lecture ${lec.lecture_num}`;
+          sec.appendChild(heading);
+          const body = document.createElement('div');
+          body.innerHTML = processLatex(lec.content);
+          sec.appendChild(body);
+          fragment.appendChild(sec);
+        });
+        content.appendChild(fragment);
+
+        // Typeset math
+        if (window.MathJax && MathJax.typesetPromise) {
+          MathJax.typesetPromise([content]).catch(console.error);
+        } else {
+          document.addEventListener('mathjax-ready', () =>
+            MathJax.typesetPromise([content]).catch(console.error));
+        }
+      } catch (e) {
+        loading.innerHTML = `<span class="err">${e}</span>`;
+      }
+    }
+
+    loadLectures();
+  </script>
+</body>
+</html>

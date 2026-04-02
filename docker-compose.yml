@@ -1,0 +1,28 @@
+services:
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      INBOX_DIR: /srv/notes/inbox
+      OUTPUT_DIR: /srv/notes/output
+      DB_PATH: /srv/notes/jobs.db
+      TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
+    volumes:
+      - ${NOTES_DIR:-/srv/notes}:/srv/notes
+
+  worker:
+    build: .
+    command: python -m app.worker
+    env_file: .env
+    environment:
+      INBOX_DIR: /srv/notes/inbox
+      OUTPUT_DIR: /srv/notes/output
+      DB_PATH: /srv/notes/jobs.db
+      TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
+    volumes:
+      - ${NOTES_DIR:-/srv/notes}:/srv/notes
+    depends_on:
+      - api
