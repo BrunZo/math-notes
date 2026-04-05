@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### Run the server (Docker)
+### Run the service (Docker)
 ```bash
 docker compose up --build       # foreground, with build
 docker compose up --build -d    # background
@@ -12,43 +12,73 @@ docker compose logs -f          # follow logs
 docker compose down             # stop
 ```
 
-### Parse images to LaTeX
-```bash
-source .venv/bin/activate
-cd parsing
-python parse_notes.py "GLOB_PATTERN" [--model claude|gpt4o|gemini] [--output-dir ../tex_files/TOPIC/]
-# Example:
-python parse_notes.py "../handwritten/*.jpg" --model claude --output-dir ../tex_files/proj_geo/
-```
-
 ### Add dependencies
 ```bash
-source .venv/bin/activate && pip install <package>
+pip install <package>           # then add to requirements.txt
 ```
 
-`tectonic` (LaTeX compiler) is a system binary, not a pip package — install it separately before running the server.
+`tectonic` (LaTeX compiler) is installed inside the Docker image — it is not a pip package.
 
 ## Architecture
 
-Two independent subsystems connected by `tex_files/`:
+Two processes share a filesystem volume. The API writes job files; the worker consumes them.
 
 ```
-handwritten/*.jpg
-      │
-      ▼
-parsing/parse_notes.py  ──►  tex_files/TOPIC/*.tex  (body-only LaTeX)
-      │                                │
-  parsers/{claude,gpt4o,gemini}        ▼
-                               server.py  ──► tectonic ──► PDF
+Browser / curl
+     │
+     ▼
+app/main.py  (FastAPI)
+     │  POST /job  →  INBOX_DIR/{path}.job  +  images
+     │  GET  /job/{path}.tex  ←  OUTPUT_DIR/{path}.tex
+     │  GET  /job/{path}.pdf  ←  OUTPUT_DIR/{path}.tex  →  tectonic  →  PDF bytes
+     │  GET  /jobs            ←  scans OUTPUT_DIR + INBOX_DIR
+     │
+     ▼ (shared volume)
+workflow/worker.py  (poll loop)
+     │  finds *.job in INBOX_DIR
+     │  calls workflow/parsing → AI API → body-only LaTeX
+     └► writes OUTPUT_DIR/{path}.tex
 ```
 
-**`parsing/`** — CLI batch converter. `parse_notes.py` globs images, instantiates the selected `BaseParser` subclass, and writes one `.tex` file per image. Output is **body-only** (no `\documentclass`, no `\begin{document}`) — preamble assembly is handled separately.
+**`app/`** — FastAPI server.
+- `main.py` — all HTTP endpoints. Reads env vars directly (`INBOX_DIR`, `OUTPUT_DIR`, `SECRET_TOKEN`).
+- `latex.py` — `compile(tex_path)`: shells out to `tectonic` and returns PDF bytes. Called on demand by `GET /job/{path}.pdf`.
 
-**`server.py`** — FastAPI server. `GET /pdf/{filename}` looks up `tex_files/{filename}.tex`, shells out to `tectonic` to compile it, and returns the PDF inline. The `render` endpoint is a placeholder.
+**`workflow/`** — background worker and AI parsers.
+- `worker.py` — polls `INBOX_DIR` every 5 s for `*.job` files, calls `transcribe_images`, writes `.tex`.
+- `parsing/__init__.py` — `transcribe_images(image_paths, model, fidelity)`. Exposes `MODEL_REGISTRY` (flat `model_id → class`) and `MODELS_BY_PROVIDER` (grouped, served by `GET /models`).
+- `parsing/claude_parser.py` — Anthropic API. Uses `ANTHROPIC_API_KEY`.
+- `parsing/gemini_parser.py` — Google Gemini via `google-genai`. Uses `GOOGLE_API_KEY`.
+- `parsing/base.py` — `BaseParser` ABC, system prompt builder (`build_prompt(fidelity)`), fidelity blocks.
+
+**`templates/`** — `index.html` (single-page UI), `master.tex.j2` (unused, kept for reference).
+
+## Job file format
+
+A `.job` file is JSON placed in `INBOX_DIR` by the API:
+
+```json
+{
+  "model": "claude-opus-4-6",
+  "fidelity": "standard",
+  "images": ["01_01.png", "01_02.png"]
+}
+```
+
+Images are listed relative to the job file's directory.
+
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `SECRET_TOKEN` | yes | Bearer token for write endpoints |
+| `ANTHROPIC_API_KEY` | for Claude | Anthropic API key |
+| `GOOGLE_API_KEY` | for Gemini | Google API key |
+| `INBOX_DIR` | yes | Directory the worker polls for `.job` files |
+| `OUTPUT_DIR` | yes | Directory where `.tex` and `.error` files are written |
 
 ## Key notes
 
-- Parser implementations live in `parsing/parsers/`. The `PARSERS` dict in `__init__.py` maps CLI model names to classes.
-- `ClaudeParser` loads `parsing/.claude.env` via `load_dotenv(".claude.env")` — must be run **from the `parsing/` directory**, not from the repo root.
-- API keys: `SECRET_KEY` (Anthropic), `OPENAI_API_KEY` (OpenAI), `GOOGLE_API_KEY` (Google) — set in `.claude.env` or environment.
-- `tex_files/` is organized by topic/notebook. Per-page body files are named after the source image (e.g. `Geo_Proye_1C2025_1.tex`). Assembled notebooks (e.g. `all_proj_geo.tex`) are edited manually.
+- Adding a new AI provider: add a parser class with a `MODELS: list[str]` attribute and `__init__(self, model: str, fidelity: str)` to `workflow/parsing/`, then register it in `workflow/parsing/__init__.py` (`MODELS_BY_PROVIDER` and `MODEL_REGISTRY`). The frontend and validation pick it up automatically.
+- The worker derives the output subdirectory from the job file's position relative to `INBOX_DIR`, so `INBOX_DIR/foo/bar/01.job` produces `OUTPUT_DIR/foo/bar/01.tex`.
+- LaTeX output is **body-only** (no `\documentclass`, no `\begin{document}`). The system prompt instructs the model to start with `\chapter`.

@@ -1,6 +1,6 @@
 # Notes Pipeline
 
-A self-contained web service that accepts images of handwritten university notes, transcribes them to LaTeX via the Anthropic API, compiles the results with Tectonic, and serves the output as PDFs organized by course.
+A self-contained web service that accepts images (or PDFs) of handwritten university notes, transcribes them to LaTeX via an AI model, and serves the compiled PDF on demand — a printer for handwritten notes.
 
 ## Prerequisites
 
@@ -10,59 +10,61 @@ A self-contained web service that accepts images of handwritten university notes
 
 ```bash
 git clone ... && cd math-notes-viz
-cp .env.example .env   # fill in SECRET_TOKEN and ANTHROPIC_API_KEY
+cp .env.example .env   # fill in SECRET_TOKEN, ANTHROPIC_API_KEY, and/or GOOGLE_API_KEY
 ```
 
-## Running locally
+## Running
 
 ```bash
-docker compose up --build
-```
-
-The API is available at `http://localhost:8000`. Data is persisted in `/srv/notes` on the host (configurable via `NOTES_DIR` in your environment or `.env`).
-
-To run in the background:
-
-```bash
-docker compose up --build -d
+docker compose up --build       # foreground
+docker compose up --build -d    # background
 docker compose logs -f          # follow logs
 docker compose down             # stop
 ```
 
-## Deploying to the server
+The web interface is available at `http://localhost:8000`. Data is persisted under `/srv/notes` on the host (override with `NOTES_DIR` in your environment or `.env`).
 
-SSH into the server and run:
+## Usage
+
+Open `http://localhost:8000` in a browser. The interface lets you:
+
+1. **Submit a job** — give it a path (e.g. `topology/01`), choose a provider and model, pick a fidelity level, and upload images or a PDF.
+2. **Track progress** — the Outputs table lists all jobs with their status (pending / done / error).
+3. **Download results** — once done, download the `.tex` source or compile and download the `.pdf` directly from the table.
+
+## API
+
+All write endpoints require `Authorization: Bearer <SECRET_TOKEN>`. GET requests are unauthenticated.
 
 ```bash
-bash deploy.sh
-```
-
-See [`deploy.sh`](deploy.sh) for the `REPO_DIR` variable if your checkout is not at `~/code/math-notes-viz`.
-
-## API usage
-
-```bash
-# Upload a lecture
-curl -X POST http://localhost:8000/jobs \
+# Submit a job
+curl -X POST http://localhost:8000/job \
   -H "Authorization: Bearer $SECRET_TOKEN" \
-  -F "course_id=geo_proyectiva" \
-  -F "course_name=Geometría Proyectiva" \
-  -F "lecture_num=1" \
-  -F "file=@clase1.jpg"
+  -F "path=topology/01" \
+  -F "model=claude-opus-4-6" \
+  -F "fidelity=standard" \
+  -F "files=@lecture1.jpg"
 
-# Check job status
-curl http://localhost:8000/jobs/{job_id} \
-  -H "Authorization: Bearer $SECRET_TOKEN"
+# List all jobs and their status
+curl http://localhost:8000/jobs
 
-# Check all lectures for a course
-curl http://localhost:8000/courses/geo_proyectiva/status \
-  -H "Authorization: Bearer $SECRET_TOKEN"
+# Download the .tex output
+curl http://localhost:8000/job/topology/01.tex --output 01.tex
 
-# Download compiled course PDF
-curl http://localhost:8000/courses/geo_proyectiva/pdf \
-  -H "Authorization: Bearer $SECRET_TOKEN" \
-  --output geo_proyectiva.pdf
+# Compile and download as PDF (triggers tectonic on the server)
+curl http://localhost:8000/job/topology/01.pdf --output 01.pdf
 
-# Health check (no auth required)
+# List available models grouped by provider
+curl http://localhost:8000/models
+
+# Health check
 curl http://localhost:8000/health
 ```
+
+## Fidelity levels
+
+| Level | Behaviour |
+|---|---|
+| `conservative` | Faithful transcription; fix only obvious errors |
+| `standard` | Transcription with cleaned-up prose; expand abbreviations |
+| `liberal` | Treat notes as an outline; produce a complete textbook section |

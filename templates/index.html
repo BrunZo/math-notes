@@ -11,7 +11,7 @@
     h2 { font-size: 1rem; margin-bottom: 0.75rem; color: #555; text-transform: uppercase; letter-spacing: 0.05em; }
     section { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
     label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 0.25rem; }
-    input[type=text], input[type=password], input[type=number] {
+    input[type=text], input[type=password] {
       width: 100%; padding: 0.45rem 0.6rem; border: 1px solid #ccc; border-radius: 4px;
       font-size: 0.9rem; margin-bottom: 0.75rem;
     }
@@ -29,46 +29,40 @@
     button:hover { background: #555; }
     button.secondary { background: #fff; color: #333; border: 1px solid #ccc; }
     button.secondary:hover { background: #f0f0f0; }
-    #upload-result { margin-top: 0.75rem; font-size: 0.85rem; }
+    .status { margin-top: 0.75rem; font-size: 0.85rem; }
     .ok { color: #2a7a2a; } .err { color: #c0392b; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.25rem; }
     th { text-align: left; border-bottom: 2px solid #e0e0e0; padding: 0.4rem 0.5rem; color: #555; }
     td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
-    .badge {
-      display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px;
-      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
-    }
-    .badge-pending    { background: #fff3cd; color: #856404; }
-    .badge-done       { background: #d1e7dd; color: #0a3622; }
-    .badge-error      { background: #f8d7da; color: #842029; }
-    .course-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-    .course-block { margin-bottom: 1.25rem; }
-    details summary { cursor: pointer; font-weight: 600; padding: 0.3rem 0; }
-    .view-link { display: inline-block; margin-top: 0.75rem; font-size: 0.85rem; color: #333; text-decoration: none; }
-    .view-link:hover { text-decoration: underline; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .badge-done    { background: #d1e7dd; color: #0a3622; }
+    .badge-pending { background: #fff3cd; color: #856404; }
+    .badge-error   { background: #f8d7da; color: #842029; }
   </style>
 </head>
 <body>
   <h1>Notes Pipeline</h1>
 
-  <!-- Token -->
   <section>
     <h2>Auth</h2>
     <label for="token">Secret token</label>
-    <input type="password" id="token" placeholder="paste token here" autocomplete="off" onchange="loadCourses()">
+    <input type="password" id="token" placeholder="paste token here" autocomplete="off">
   </section>
 
-  <!-- Upload -->
   <section>
-    <h2>Upload lecture</h2>
+    <h2>Submit job</h2>
     <div class="row">
       <div>
-        <label>Course ID</label>
-        <input type="text" id="course_id" placeholder="course_id">
+        <label>Path (e.g. topology/01)</label>
+        <input type="text" id="path" placeholder="course/lecture">
       </div>
       <div>
-        <label>Lecture #</label>
-        <input type="number" id="lecture_num" min="1" value="1">
+        <label>Provider</label>
+        <select id="provider" onchange="updateModels()"></select>
+      </div>
+      <div>
+        <label>Model</label>
+        <select id="model"></select>
       </div>
       <div>
         <label>Fidelity</label>
@@ -78,98 +72,146 @@
           <option value="liberal">Liberal</option>
         </select>
       </div>
-      <div>
-        <label>Images (jpg / png / webp)</label>
-        <input type="file" id="file" accept="image/jpeg,image/png,image/webp" multiple>
-      </div>
     </div>
-    <button onclick="uploadJob()">Upload</button>
-    <div id="upload-result"></div>
+    <div>
+      <label>Images or PDF</label>
+      <input type="file" id="files" accept="image/jpeg,image/png,image/webp,application/pdf" multiple>
+    </div>
+    <button onclick="submitJob()">Submit</button>
+    <div class="status" id="submit-status"></div>
   </section>
 
-  <!-- Courses -->
   <section>
-    <div class="course-header">
-      <h2>Courses</h2>
-      <button class="secondary" onclick="loadCourses()">Refresh</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem">
+      <h2 style="margin:0">Outputs</h2>
+      <button class="secondary" onclick="loadJobs()">Refresh</button>
     </div>
-    <div id="courses"><em style="color:#999;font-size:.85rem">Press Refresh to load.</em></div>
+    <div id="jobs-list"><em style="color:#999;font-size:.85rem">Loading…</em></div>
+    <div class="status" id="get-status"></div>
   </section>
 
   <script>
-    function token() { return document.getElementById('token').value.trim(); }
-    function headers() { return { 'Authorization': 'Bearer ' + token() }; }
-    function badge(status) { return `<span class="badge badge-${status}">${status}</span>`; }
+    let modelsByProvider = {};
 
-    async function uploadJob() {
-      const result = document.getElementById('upload-result');
-      const fileList = document.getElementById('file').files;
-      if (!fileList.length) { result.innerHTML = '<span class="err">Select at least one file.</span>'; return; }
-
-      const fd = new FormData();
-      fd.append('course_id',   document.getElementById('course_id').value.trim());
-      fd.append('lecture_num', document.getElementById('lecture_num').value);
-      fd.append('fidelity',    document.getElementById('fidelity').value);
-      for (const f of fileList) fd.append('files', f);
-
-      result.innerHTML = 'Uploading…';
+    async function loadModels() {
       try {
-        const r = await fetch('/jobs', { method: 'POST', headers: headers(), body: fd });
-        const data = await r.json();
-        if (r.ok) {
-          const n = data.files.length;
-          result.innerHTML = `<span class="ok">Queued ${n} page${n !== 1 ? 's' : ''} for transcription.</span>`;
-          loadCourses();
-        } else {
-          result.innerHTML = `<span class="err">Error ${r.status}: ${data.detail}</span>`;
-        }
+        const r = await fetch('/models');
+        modelsByProvider = await r.json();
+        const providerEl = document.getElementById('provider');
+        providerEl.innerHTML = Object.keys(modelsByProvider)
+          .map(p => `<option value="${p}">${p}</option>`).join('');
+        updateModels();
       } catch (e) {
-        result.innerHTML = `<span class="err">${e}</span>`;
+        console.error('Failed to load models:', e);
       }
     }
 
-    async function loadCourses() {
-      const el = document.getElementById('courses');
-      el.innerHTML = 'Loading…';
+    function updateModels() {
+      const provider = document.getElementById('provider').value;
+      const modelEl = document.getElementById('model');
+      modelEl.innerHTML = (modelsByProvider[provider] || [])
+        .map(m => `<option value="${m}">${m}</option>`).join('');
+    }
+
+    function headers() { return { 'Authorization': 'Bearer ' + document.getElementById('token').value.trim() }; }
+
+    async function submitJob() {
+      const status = document.getElementById('submit-status');
+      const fileList = document.getElementById('files').files;
+      if (!fileList.length) { status.innerHTML = '<span class="err">Select at least one file.</span>'; return; }
+
+      const fd = new FormData();
+      fd.append('path',    document.getElementById('path').value.trim());
+      fd.append('model',   document.getElementById('model').value);
+      fd.append('fidelity', document.getElementById('fidelity').value);
+      for (const f of fileList) fd.append('files', f);
+
+      status.innerHTML = 'Submitting…';
       try {
-        const r = await fetch('/courses', { headers: headers() });
-        if (!r.ok) { el.innerHTML = `<span class="err">Error ${r.status}</span>`; return; }
-        const courses = await r.json();
-        if (!courses.length) { el.innerHTML = '<em style="color:#999;font-size:.85rem">No courses yet.</em>'; return; }
-        el.innerHTML = '';
-        for (const c of courses) await renderCourse(c, el);
+        const r = await fetch('/job', { method: 'POST', headers: headers(), body: fd });
+        const data = await r.json();
+        if (r.ok) {
+          const n = data.files.length;
+          status.innerHTML = `<span class="ok">Queued ${n} page${n !== 1 ? 's' : ''} — id: ${data.id}</span>`;
+          loadJobs();
+        } else {
+          status.innerHTML = `<span class="err">Error ${r.status}: ${data.detail}</span>`;
+        }
+      } catch (e) {
+        status.innerHTML = `<span class="err">${e}</span>`;
+      }
+    }
+
+    async function loadJobs() {
+      const el = document.getElementById('jobs-list');
+      try {
+        const r = await fetch('/jobs');
+        const jobs = await r.json();
+        if (!jobs.length) { el.innerHTML = '<em style="color:#999;font-size:.85rem">No jobs yet.</em>'; return; }
+
+        // Group by parent directory
+        const groups = {};
+        for (const j of jobs) {
+          const slash = j.id.lastIndexOf('/');
+          const dir = slash >= 0 ? j.id.slice(0, slash) : '';
+          (groups[dir] = groups[dir] || []).push(j);
+        }
+
+        let html = '<table><thead><tr><th>Path</th><th>Status</th><th></th></tr></thead><tbody>';
+        for (const [dir, entries] of Object.entries(groups)) {
+          const doneCount = entries.filter(j => j.status === 'done').length;
+          if (dir && doneCount > 1) {
+            html += `<tr style="background:#f9f9f9">
+              <td><code>${dir}/</code></td>
+              <td><span class="badge badge-done">${doneCount} done</span></td>
+              <td style="white-space:nowrap">
+                <button class="secondary" onclick="getOutput('${dir}/master','pdf')">↓ master pdf</button>
+              </td>
+            </tr>`;
+          }
+          for (const j of entries) {
+            html += `<tr>
+              <td><code>${j.id}</code></td>
+              <td><span class="badge badge-${j.status}">${j.status}</span></td>
+              <td style="white-space:nowrap">
+                ${j.status === 'done' ? `
+                  <button class="secondary" onclick="getOutput('${j.id}','tex')">↓ tex</button>
+                  <button class="secondary" onclick="getOutput('${j.id}','pdf')">↓ pdf</button>
+                ` : ''}
+              </td>
+            </tr>`;
+          }
+        }
+        html += '</tbody></table>';
+        el.innerHTML = html;
       } catch (e) {
         el.innerHTML = `<span class="err">${e}</span>`;
       }
     }
 
-    async function renderCourse(c, container) {
-      const block = document.createElement('div');
-      block.className = 'course-block';
-
-      const r = await fetch(`/courses/${c.id}/status`, { headers: headers() });
-      const data = await r.json();
-      const lectures = data.lectures || [];
-      const done = lectures.filter(j => j.status === 'done').length;
-
-      const rows = lectures.map(j => `
-        <tr>
-          <td>${j.lecture_num}</td>
-          <td>${badge(j.status)}</td>
-          <td style="color:#c0392b;font-size:.8rem">${j.error_msg || ''}</td>
-        </tr>`).join('');
-
-      block.innerHTML = `
-        <details open>
-          <summary>${c.name !== c.id ? `${c.name} <span style="font-weight:400;color:#aaa;font-size:.8rem">(${c.id})</span>` : `<code>${c.id}</code>`} <span style="font-weight:400;color:#888;font-size:.85rem">(${done}/${lectures.length} done)</span></summary>
-          <table>
-            <thead><tr><th>#</th><th>Status</th><th>Error</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-          ${done > 0 ? `<a class="view-link" href="/courses/${c.id}/full">View lectures →</a>` : ''}
-        </details>`;
-      container.appendChild(block);
+    async function getOutput(path, fmt) {
+      const status = document.getElementById('get-status');
+      status.innerHTML = 'Fetching…';
+      try {
+        const r = await fetch(`/job/${path}.${fmt}`);
+        if (r.ok) {
+          const blob = await r.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `${path.split('/').pop()}.${fmt}`; a.click();
+          URL.revokeObjectURL(url);
+          status.innerHTML = '<span class="ok">Download started.</span>';
+        } else {
+          const data = await r.json();
+          status.innerHTML = `<span class="err">Error ${r.status}: ${data.detail}</span>`;
+        }
+      } catch (e) {
+        status.innerHTML = `<span class="err">${e}</span>`;
+      }
     }
+
+    loadModels();
+    loadJobs();
   </script>
 </body>
 </html>

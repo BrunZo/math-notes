@@ -1,42 +1,35 @@
+import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
 import fitz  # pymupdf
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
-from typing import Annotated
 
-from .config import settings
+from workflow.parsing import MODELS_BY_PROVIDER, MODEL_REGISTRY
 from . import latex
+
+_INBOX_DIR = Path(os.environ["INBOX_DIR"])
+_OUTPUT_DIR = Path(os.environ["OUTPUT_DIR"])
+_SECRET_TOKEN = os.environ["SECRET_TOKEN"]
+
+_TEMPLATES = Path(__file__).parent.parent / "templates"
+_INDEX_HTML = _TEMPLATES / "index.html"
+
+_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+_FIDELITY_VALUES = {"conservative", "standard", "liberal"}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings.INBOX_DIR.mkdir(parents=True, exist_ok=True)
-    settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    _INBOX_DIR.mkdir(parents=True, exist_ok=True)
+    _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
 
 app = FastAPI(lifespan=lifespan)
-
-_ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
-_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
-_TEMPLATES = Path(__file__).parent.parent / "templates"
-_INDEX_HTML = _TEMPLATES / "index.html"
-_COURSE_FULL_HTML = _TEMPLATES / "course_full.html"
-_COURSES_CSV = Path(__file__).parent.parent / "courses.csv"
-
-
-def _load_course_names() -> dict[str, str]:
-    if not _COURSES_CSV.exists():
-        return {}
-    names: dict[str, str] = {}
-    for line in _COURSES_CSV.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and "," in line:
-            cid, name = line.split(",", 1)
-            names[cid.strip()] = name.strip()
-    return names
 
 
 @app.middleware("http")
@@ -44,7 +37,7 @@ async def auth_middleware(request: Request, call_next):
     if request.method == "GET":
         return await call_next(request)
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[len("Bearer "):] != settings.SECRET_TOKEN:
+    if not auth.startswith("Bearer ") or auth[len("Bearer "):] != _SECRET_TOKEN:
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
     return await call_next(request)
 
@@ -54,39 +47,64 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/jobs")
+async def list_jobs():
+    jobs: dict[str, str] = {}
+
+    if _OUTPUT_DIR.exists():
+        for f in sorted(_OUTPUT_DIR.rglob("*.tex")):
+            jobs[f.relative_to(_OUTPUT_DIR).with_suffix("").as_posix()] = "done"
+        for f in sorted(_OUTPUT_DIR.rglob("*.error")):
+            path = f.relative_to(_OUTPUT_DIR).with_suffix("").as_posix()
+            jobs.setdefault(path, "error")
+
+    if _INBOX_DIR.exists():
+        for f in sorted(_INBOX_DIR.rglob("*.job")):
+            path = f.relative_to(_INBOX_DIR).with_suffix("").as_posix()
+            jobs.setdefault(path, "pending")
+
+    return [{"id": k, "status": v} for k, v in sorted(jobs.items())]
+
+
+@app.get("/models")
+async def list_models():
+    return MODELS_BY_PROVIDER
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return HTMLResponse(_INDEX_HTML.read_text())
 
 
-_FIDELITY_VALUES = {"conservative", "standard", "liberal"}
-
-
-@app.post("/jobs")
+@app.post("/job")
 async def create_job(
-    course_id: str = Form(...),
-    lecture_num: int = Form(...),
+    path: str = Form(...),
+    model: str = Form(...),
     fidelity: str = Form("standard"),
     files: Annotated[list[UploadFile], File(...)] = ...,
 ):
+    if ".." in Path(path).parts or Path(path).is_absolute():
+        raise HTTPException(status_code=422, detail="Invalid path")
     if fidelity not in _FIDELITY_VALUES:
         raise HTTPException(status_code=422, detail=f"Invalid fidelity: {fidelity}")
+    if model not in MODEL_REGISTRY:
+        raise HTTPException(status_code=422, detail=f"Unknown model: {model}")
     for f in files:
         if f.content_type not in _ALLOWED_TYPES:
-            raise HTTPException(status_code=415, detail=f"Unsupported media type: {f.content_type}")
+            raise HTTPException(status_code=415, detail=f"Unsupported type: {f.content_type}")
 
-    lecture_stem = f"{lecture_num:02d}"
-    tex_path = settings.OUTPUT_DIR / course_id / f"{lecture_stem}.tex"
-    if tex_path.exists():
-        raise HTTPException(status_code=409, detail=f"Lecture {lecture_stem} already has a .tex file for course '{course_id}'")
-    batch_path = settings.INBOX_DIR / course_id / f"{lecture_stem}.batch"
-    if batch_path.exists():
-        raise HTTPException(status_code=409, detail=f"Lecture {lecture_stem} is already pending for course '{course_id}'")
+    job_path = Path(path)
+    stem = job_path.name
+    inbox_dir = _INBOX_DIR / job_path.parent
 
-    inbox_dir = settings.INBOX_DIR / course_id
+    if (_OUTPUT_DIR / f"{path}.tex").exists():
+        raise HTTPException(status_code=409, detail=f"Output already exists for {path}")
+    if (inbox_dir / f"{stem}.job").exists():
+        raise HTTPException(status_code=409, detail=f"Job already pending for {path}")
+
     inbox_dir.mkdir(parents=True, exist_ok=True)
 
-    saved = []
+    saved: list[str] = []
     page = 1
     for f in files:
         raw = await f.read()
@@ -94,90 +112,58 @@ async def create_job(
             pdf_doc = fitz.open(stream=raw, filetype="pdf")
             for pdf_page in pdf_doc:
                 pix = pdf_page.get_pixmap(dpi=200)
-                dest = inbox_dir / f"{lecture_num:02d}_{page:02d}.png"
+                dest = inbox_dir / f"{stem}_{page:02d}.png"
                 dest.write_bytes(pix.tobytes("png"))
                 saved.append(dest.name)
                 page += 1
         else:
             suffix = Path(f.filename).suffix.lower() if f.filename else ".jpg"
-            dest = inbox_dir / f"{lecture_num:02d}_{page:02d}{suffix}"
+            dest = inbox_dir / f"{stem}_{page:02d}{suffix}"
             dest.write_bytes(raw)
             saved.append(dest.name)
             page += 1
 
-    (inbox_dir / f"{lecture_stem}.batch").write_text("\n".join(sorted(saved)))
-    (inbox_dir / f"{lecture_stem}.fidelity").write_text(fidelity)
-
-    return {"status": "pending", "files": saved}
-
-
-@app.get("/courses")
-async def list_courses():
-    ids: set[str] = set()
-    for base in (settings.INBOX_DIR, settings.OUTPUT_DIR):
-        if base.exists():
-            ids.update(p.name for p in base.iterdir() if p.is_dir())
-    names = _load_course_names()
-    return [{"id": cid, "name": names.get(cid, cid)} for cid in sorted(ids)]
-
-
-@app.get("/courses/{course_id}/status")
-async def course_status(course_id: str):
-    lectures: dict[str, dict] = {}
-
-    out_dir = settings.OUTPUT_DIR / course_id
-    if out_dir.exists():
-        for f in out_dir.iterdir():
-            if f.name == "master.tex":
-                continue
-            if f.suffix == ".tex":
-                lectures[f.stem] = {"lecture_num": f.stem, "status": "done"}
-            elif f.suffix == ".error" and f.stem not in lectures:
-                lectures[f.stem] = {"lecture_num": f.stem, "status": "error",
-                                     "error_msg": f.read_text()}
-
-    inbox_dir = settings.INBOX_DIR / course_id
-    if inbox_dir.exists():
-        for f in inbox_dir.iterdir():
-            if f.suffix == ".batch" and f.stem not in lectures:
-                lectures[f.stem] = {"lecture_num": f.stem, "status": "pending"}
-
-    return {
-        "course_id": course_id,
-        "lectures": sorted(lectures.values(), key=lambda j: j["lecture_num"]),
-    }
-
-
-@app.get("/courses/{course_id}/full", response_class=HTMLResponse)
-async def course_full_page(course_id: str):
-    return HTMLResponse(_COURSE_FULL_HTML.read_text())
-
-
-@app.get("/courses/{course_id}/pdf")
-async def course_pdf(course_id: str):
-    master_path = settings.OUTPUT_DIR / course_id / "master.tex"
-    if not master_path.exists():
-        raise HTTPException(status_code=404, detail="No master.tex for this course yet")
-
-    try:
-        pdf_bytes = latex.compile(master_path)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
-
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{course_id}.pdf"'},
+    (inbox_dir / f"{stem}.job").write_text(
+        json.dumps({"model": model, "fidelity": fidelity, "images": sorted(saved)}),
+        encoding="utf-8",
     )
 
+    return {"id": path, "status": "pending", "files": saved}
 
-@app.get("/courses/{course_id}/lectures")
-async def course_lectures(course_id: str):
-    out_dir = settings.OUTPUT_DIR / course_id
-    if not out_dir.exists():
-        raise HTTPException(status_code=404, detail="Course not found")
-    files = sorted(
-        (f for f in out_dir.glob("*.tex") if f.name != "master.tex"),
-        key=lambda f: f.stem,
-    )
-    return [{"lecture_num": f.stem, "content": f.read_text(encoding="utf-8")} for f in files]
+
+@app.get("/job/{path:path}")
+async def get_job_output(path: str):
+    p = Path(path)
+    suffix = p.suffix.lower()
+    stem = p.stem
+    parent = p.parent
+
+    if suffix not in {".tex", ".pdf"}:
+        raise HTTPException(status_code=400, detail="Path must end in .tex or .pdf")
+
+    tex_path = _OUTPUT_DIR / parent / f"{stem}.tex"
+
+    if suffix == ".tex":
+        if tex_path.exists():
+            return Response(content=tex_path.read_text(encoding="utf-8"), media_type="text/plain")
+    elif suffix == ".pdf":
+        try:
+            if stem == "master":
+                pdf_bytes = latex.compile_master(_OUTPUT_DIR / parent)
+            elif tex_path.exists():
+                pdf_bytes = latex.compile(tex_path)
+            else:
+                pdf_bytes = None
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+        if pdf_bytes is not None:
+            return Response(content=pdf_bytes, media_type="application/pdf")
+
+    error_path = _OUTPUT_DIR / parent / f"{stem}.error"
+    if error_path.exists():
+        raise HTTPException(status_code=500, detail=error_path.read_text(encoding="utf-8"))
+
+    if (_INBOX_DIR / parent / f"{stem}.job").exists():
+        raise HTTPException(status_code=202, detail="Job is pending")
+
+    raise HTTPException(status_code=404, detail="Not found")

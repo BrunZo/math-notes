@@ -15,7 +15,7 @@ services:
 
   worker:
     build: .
-    command: python -m app.worker
+    command: python -m workflow.worker
     env_file: .env
     environment:
       INBOX_DIR: /srv/notes/inbox

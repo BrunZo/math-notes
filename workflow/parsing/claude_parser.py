@@ -3,39 +3,37 @@ from pathlib import Path
 
 import anthropic
 
+import os
+
 from .base import BaseParser, build_prompt, media_type
-from ..config import settings
 
 
 class ClaudeParser(BaseParser):
-    def __init__(self, model: str = "claude-opus-4-6", fidelity: str = "standard"):
-        self._client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    MODELS = [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+    ]
+
+    def __init__(self, model: str, fidelity: str = "standard"):
+        self._client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
         self._model = model
         self._system_prompt = build_prompt(fidelity)
 
     def parse_images(self, image_paths: list[Path]) -> str:
         image_paths = [Path(p) for p in image_paths]
 
-        content: list[dict] = []
-        for p in image_paths:
-            content.append({
+        content: list[dict] = [
+            {
                 "type": "image",
                 "source": {
                     "type": "base64",
                     "media_type": media_type(p),
                     "data": base64.standard_b64encode(p.read_bytes()).decode(),
                 },
-            })
-        n = len(image_paths)
-        content.append({
-            "type": "text",
-            "text": (
-                "Transcribe this page to LaTeX."
-                if n == 1
-                else f"Transcribe all {n} pages to LaTeX. "
-                     "Produce a single continuous document body in page order."
-            ),
-        })
+            }
+            for p in image_paths
+        ]
 
         try:
             message = self._client.messages.create(
