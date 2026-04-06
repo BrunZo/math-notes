@@ -160,7 +160,7 @@ async def get_job_output(path: str):
             if stem == "master":
                 pdf_bytes = latex.compile_master(_OUTPUT_DIR / parent)
             elif tex_path.exists():
-                pdf_bytes = latex.compile(tex_path)
+                pdf_bytes = latex.compile_single(tex_path)
             else:
                 pdf_bytes = None
         except RuntimeError as exc:
