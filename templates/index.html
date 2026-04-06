@@ -51,17 +51,13 @@
 
   <section>
     <h2>Submit job</h2>
+    <div>
+      <label>Path (e.g. topology/01)</label>
+      <input type="text" id="path" placeholder="course/lecture">
+    </div>
     <div class="row">
       <div>
-        <label>Path (e.g. topology/01)</label>
-        <input type="text" id="path" placeholder="course/lecture">
-      </div>
-      <div>
-        <label>Provider</label>
-        <select id="provider" onchange="updateModels()"></select>
-      </div>
-      <div>
-        <label>Model</label>
+        <label>Parsing model</label>
         <select id="model"></select>
       </div>
       <div>
@@ -70,6 +66,16 @@
           <option value="conservative">Conservative</option>
           <option value="standard" selected>Standard</option>
         </select>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Debugging model</label>
+        <select id="debug-model"></select>
+      </div>
+      <div>
+        <label>Debug iterations</label>
+        <input type="number" id="debug-iters" value="3" min="0" max="10" style="width:100%;padding:0.45rem 0.6rem;border:1px solid #ccc;border-radius:4px;font-size:0.9rem;margin-bottom:0.75rem;">
       </div>
     </div>
     <div>
@@ -90,26 +96,20 @@
   </section>
 
   <script>
-    let modelsByProvider = {};
-
     async function loadModels() {
       try {
         const r = await fetch('/models');
-        modelsByProvider = await r.json();
-        const providerEl = document.getElementById('provider');
-        providerEl.innerHTML = Object.keys(modelsByProvider)
-          .map(p => `<option value="${p}">${p}</option>`).join('');
-        updateModels();
+        const byProvider = await r.json();
+        const allModels = Object.values(byProvider).flat();
+        const options = allModels.map(m => `<option value="${m}">${m}</option>`).join('');
+        document.getElementById('model').innerHTML = options;
+        document.getElementById('debug-model').innerHTML = options;
+        // Default debug model to last option (typically the lightest).
+        const debugEl = document.getElementById('debug-model');
+        debugEl.selectedIndex = debugEl.options.length - 1;
       } catch (e) {
         console.error('Failed to load models:', e);
       }
-    }
-
-    function updateModels() {
-      const provider = document.getElementById('provider').value;
-      const modelEl = document.getElementById('model');
-      modelEl.innerHTML = (modelsByProvider[provider] || [])
-        .map(m => `<option value="${m}">${m}</option>`).join('');
     }
 
     function headers() { return { 'Authorization': 'Bearer ' + document.getElementById('token').value.trim() }; }
@@ -120,9 +120,11 @@
       if (!fileList.length) { status.innerHTML = '<span class="err">Select at least one file.</span>'; return; }
 
       const fd = new FormData();
-      fd.append('path',    document.getElementById('path').value.trim());
-      fd.append('model',   document.getElementById('model').value);
-      fd.append('fidelity', document.getElementById('fidelity').value);
+      fd.append('path',        document.getElementById('path').value.trim());
+      fd.append('model',       document.getElementById('model').value);
+      fd.append('fidelity',    document.getElementById('fidelity').value);
+      fd.append('debug_model', document.getElementById('debug-model').value);
+      fd.append('debug_iters', document.getElementById('debug-iters').value);
       for (const f of fileList) fd.append('files', f);
 
       status.innerHTML = 'Submitting…';

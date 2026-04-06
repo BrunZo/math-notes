@@ -81,6 +81,8 @@ async def create_job(
     path: str = Form(...),
     model: str = Form(...),
     fidelity: str = Form("standard"),
+    debug_model: str = Form(...),
+    debug_iters: int = Form(3),
     files: Annotated[list[UploadFile], File(...)] = ...,
 ):
     if ".." in Path(path).parts or Path(path).is_absolute():
@@ -89,6 +91,10 @@ async def create_job(
         raise HTTPException(status_code=422, detail=f"Invalid fidelity: {fidelity}")
     if model not in MODEL_REGISTRY:
         raise HTTPException(status_code=422, detail=f"Unknown model: {model}")
+    if debug_model not in MODEL_REGISTRY:
+        raise HTTPException(status_code=422, detail=f"Unknown debug_model: {debug_model}")
+    if debug_iters < 0:
+        raise HTTPException(status_code=422, detail="debug_iters must be >= 0")
     for f in files:
         if f.content_type not in _ALLOWED_TYPES:
             raise HTTPException(status_code=415, detail=f"Unsupported type: {f.content_type}")
@@ -124,7 +130,10 @@ async def create_job(
             page += 1
 
     (inbox_dir / f"{stem}.job").write_text(
-        json.dumps({"model": model, "fidelity": fidelity, "images": sorted(saved)}),
+        json.dumps({
+            "model": model, "fidelity": fidelity, "images": sorted(saved),
+            "debug_model": debug_model, "debug_iters": debug_iters,
+        }),
         encoding="utf-8",
     )
 

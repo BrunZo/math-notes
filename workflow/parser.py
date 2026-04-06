@@ -31,6 +31,8 @@ def make_process(inbox_dir: Path, output_dir: Path) -> Callable[[Path], None]:
             return
 
         fidelity = config.get("fidelity", "standard")
+        debug_model = config.get("debug_model", "")
+        debug_iters = config.get("debug_iters", 0)
 
         subdir = job_path.relative_to(inbox_dir).parent
         out_dir = output_dir / subdir
@@ -42,7 +44,8 @@ def make_process(inbox_dir: Path, output_dir: Path) -> Callable[[Path], None]:
             for img in image_paths:
                 (out_dir / img.name).write_bytes(img.read_bytes())
             # Signal compiler that this .tex needs compilation.
-            (out_dir / f"{stem}.tex.job").write_text("{}", encoding="utf-8")
+            tex_job = json.dumps({"debug_model": debug_model, "debug_iters": debug_iters})
+            (out_dir / f"{stem}.tex.job").write_text(tex_job, encoding="utf-8")
             _clean_inbox()
             log.info("done: %s (%d pages) → %s/%s.tex (model=%s, fidelity=%s)",
                      stem, len(image_paths), out_dir.name, stem, model, fidelity)

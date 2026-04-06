@@ -10,7 +10,6 @@ from .parsing import MODEL_REGISTRY
 
 log = setup_logging("debugger")
 
-_DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 _SNIPPET_CONTEXT = 20  # lines before/after error location
 
 _DEBUG_SYSTEM_PROMPT = """
@@ -35,7 +34,6 @@ def _extract_snippet(tex_lines: list[str], error_msg: str) -> tuple[int, int]:
     """Return (start, end) 0-indexed slice bounds for the relevant snippet."""
     line_nums = [int(m) for m in re.findall(r'\.tex:(\d+):', error_msg)]
     if not line_nums:
-        # No specific line — return the whole file
         return 0, len(tex_lines)
     center = min(line_nums) - 1  # convert to 0-indexed
     start = max(0, center - _SNIPPET_CONTEXT)
@@ -43,13 +41,21 @@ def _extract_snippet(tex_lines: list[str], error_msg: str) -> tuple[int, int]:
     return start, end
 
 
-def make_process(output_dir: Path, model: str) -> Callable[[Path], None]:
-    client = MODEL_REGISTRY[model](model=model)
-
+def make_process(output_dir: Path) -> Callable[[Path], None]:
     def process(job_path: Path) -> None:
         bug_data = json.loads(job_path.read_text(encoding="utf-8"))
         tex_rel = Path(bug_data["tex_path"])
         error_msg = bug_data["error"]
+        debug_model = bug_data.get("debug_model", "")
+        debug_iters = bug_data.get("debug_iters", 0)
+
+        if debug_iters <= 0:
+            log.info("no debug iterations left for %s, leaving bug", tex_rel)
+            return
+
+        if debug_model not in MODEL_REGISTRY:
+            log.error("unknown debug_model '%s' for %s, skipping", debug_model, tex_rel)
+            return
 
         tex_path = output_dir / tex_rel
         if not tex_path.exists():
@@ -66,6 +72,7 @@ def make_process(output_dir: Path, model: str) -> Callable[[Path], None]:
             f"SNIPPET (lines {start + 1}–{end}):\n{snippet}"
         )
 
+        client = MODEL_REGISTRY[debug_model](model=debug_model)
         try:
             fixed_snippet = client.complete_text(_DEBUG_SYSTEM_PROMPT, user_text)
         except Exception as exc:
@@ -74,25 +81,24 @@ def make_process(output_dir: Path, model: str) -> Callable[[Path], None]:
 
         tex_lines[start:end] = fixed_snippet.splitlines()
         tex_path.write_text("\n".join(tex_lines), encoding="utf-8")
-        # Re-signal compiler.
-        tex_path.with_suffix(".tex.job").write_text("{}", encoding="utf-8")
+
+        # Re-signal compiler with one fewer iteration remaining.
+        tex_job = json.dumps({"debug_model": debug_model, "debug_iters": debug_iters - 1})
+        tex_path.with_suffix(".tex.job").write_text(tex_job, encoding="utf-8")
         job_path.unlink(missing_ok=True)
-        log.info("fixed and re-queued %s", tex_rel)
+        log.info("fixed and re-queued %s (%d iter(s) left)", tex_rel, debug_iters - 1)
 
     return process
 
 
 def main() -> None:
     output_dir = Path(os.environ["OUTPUT_DIR"])
-    model = os.environ.get("DEBUGGER_MODEL", _DEFAULT_MODEL)
-    if model not in MODEL_REGISTRY:
-        raise ValueError(f"Unknown DEBUGGER_MODEL '{model}'. Available: {list(MODEL_REGISTRY)}")
     bugs_dir = output_dir / "bugs"
     Worker(
         name="debugger",
         job_dir=bugs_dir,
         output_dir=output_dir,
-        process=make_process(output_dir, model),
+        process=make_process(output_dir),
         glob_pattern="*.bug",
     ).run()
 
