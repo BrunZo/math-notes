@@ -22,6 +22,7 @@ PREAMBLE_REFERENCE = r"""
 \newcommand{\Q}{\mathbb{Q}}
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\C}{\mathbb{C}}
+\newcommand{\bbk}{\Bbbk}
 \newcommand{\eps}{\varepsilon}
 \newcommand{\abs}[1]{\lvert #1 \rvert}
 """
@@ -43,7 +44,7 @@ AVAILABLE ENVIRONMENTS
     proof     (from amsthm, label is "Demostración")
 
 AVAILABLE COMMANDS
-  Number sets : \\N  \\Z  \\Q  \\R  \\C
+  Number sets : \\N  \\Z  \\Q  \\R  \\C  \\bbk (blackboard-bold k, i.e. \\Bbbk)
   Other math  : \\eps (\\varepsilon), \\abs{{#1}} (|·|),
                 \\1 (bold 1), \\Re (Re), \\calD (𝒟),
                 \\li, \\mcd, \\sqfree (operator names)
@@ -61,6 +62,11 @@ so the TOC is populated.
   - Do NOT emit \\part, \\setcounter, \\newtheorem, \\usepackage, \
 \\begin{{document}}, or any preamble content.
   - Do NOT wrap output in markdown fences.
+
+SPANISH PUNCTUATION
+  - Inverted question mark : ?` (babel shorthand for ¿)
+  - Inverted exclamation   : !` (babel shorthand for ¡)
+  - Do NOT use the literal Unicode characters ¿ or ¡ directly.
 
 MATH NOTATION
   - Displayed equations: \\[ ... \\] or align/align* as appropriate.

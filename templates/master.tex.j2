@@ -1,9 +1,8 @@
 \documentclass[reqno,11pt]{amsbook}
 
-\usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-%\usepackage[spanish,es-noquoting,es-tabla]{babel}
-\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noquoting,es-tabla]{babel}
 \usepackage{microtype}
 \usepackage{mathtools,amssymb,mathrsfs}
 \usepackage{enumitem}
@@ -13,9 +12,10 @@
 bookmarksopenlevel=0]{hyperref}
 \usepackage[a4paper,margin=2.54cm]{geometry}
 \usepackage{tikz}
+\usepackage{tikz-cd}
 \usepackage{float}
 \usepackage{hyperref}
-\usetikzlibrary{arrows.meta, calc, decorations.markings, decorations.pathreplacing, babel}
+\usetikzlibrary{arrows.meta, calc, cd, decorations.markings, decorations.pathreplacing, babel}
 
 %    For use when working on individual chapters
 %\includeonly{}
@@ -57,6 +57,7 @@ bookmarksopenlevel=0]{hyperref}
 \newcommand{\Q}{\mathbb{Q}}
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\C}{\mathbb{C}}
+\newcommand{\bbk}{\Bbbk}
 \newcommand{\eps}{\varepsilon}
 \newcommand{\abs}[1]{\lvert #1 \rvert}
 
