@@ -92,26 +92,6 @@ FIDELITY_BLOCKS = {}
 FIDELITY_BLOCKS["conservative"] = """
 TRANSCRIPTION MODE: CONSERVATIVE
 
-Your job is faithful transcription. The mathematical content and all wording \
-must match the source as closely as possible.
-
-- Transcribe every word, formula, and symbol that appears in the image.
-- Do not add sentences, definitions, or explanations not present in the notes.
-- Do not reorder content except to place it inside the correct LaTeX environment \
-  (e.g. wrapping a definition in \\begin{definition}).
-- You may silently fix: obvious spelling errors in Spanish prose, clearly \
-  malformed LaTeX (e.g. a missing closing brace), ambiguous characters where \
-  mathematical context makes the intended symbol unambiguous.
-- You may NOT: add motivating sentences, expand abbreviated proofs, reword \
-  definitions for clarity, or insert examples not in the source.
-- If the notes contain an abbreviation you cannot confidently expand \
-  (e.g. a non-standard one), transcribe it literally inside \\text{}.
-- Mark illegible passages with \\textbf{[ilegible]}.
-"""
-
-FIDELITY_BLOCKS["standard"] = """
-TRANSCRIPTION MODE: STANDARD
-
 Your job is intelligent transcription. Preserve all mathematical content \
 exactly, but write prose at textbook quality.
 
@@ -132,8 +112,8 @@ exactly, but write prose at textbook quality.
 - Mark illegible passages with \\textbf{[ilegible]}.
 """
 
-FIDELITY_BLOCKS["liberal"] = """
-TRANSCRIPTION MODE: LIBERAL
+FIDELITY_BLOCKS["standard"] = """
+TRANSCRIPTION MODE: STANDARD
 
 The image contains rough notes or a sketch — treat it as an outline and \
 produce a complete, self-contained textbook section from it.

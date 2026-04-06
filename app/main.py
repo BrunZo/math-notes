@@ -19,7 +19,7 @@ _TEMPLATES = Path(__file__).parent.parent / "templates"
 _INDEX_HTML = _TEMPLATES / "index.html"
 
 _ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
-_FIDELITY_VALUES = {"conservative", "standard", "liberal"}
+_FIDELITY_VALUES = {"conservative", "standard"}
 
 
 @asynccontextmanager
