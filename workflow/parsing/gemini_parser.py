@@ -20,6 +20,17 @@ class GeminiParser(BaseParser):
         self._model = model
         self._system_prompt = build_prompt(fidelity)
 
+    def complete_text(self, system_prompt: str, user_text: str) -> str:
+        try:
+            response = self._client.models.generate_content(
+                model=self._model,
+                contents=user_text,
+                config=types.GenerateContentConfig(system_instruction=system_prompt),
+            )
+            return response.text
+        except Exception as exc:
+            raise RuntimeError(f"Gemini API call failed: {exc}") from exc
+
     def parse_images(self, image_paths: list[Path]) -> str:
         image_paths = [Path(p) for p in image_paths]
 

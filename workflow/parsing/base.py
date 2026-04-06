@@ -174,7 +174,14 @@ def build_prompt(degree: Literal["conservative", "standard", "liberal"]) -> str:
     )
 
 
-class BaseParser(ABC):
+class BaseAIClient(ABC):
+    @abstractmethod
+    def complete_text(self, system_prompt: str, user_text: str) -> str:
+        """Send a text-only message and return the model's response."""
+        ...
+
+
+class BaseParser(BaseAIClient):
     @abstractmethod
     def parse_images(self, image_paths: list[Path]) -> str:
         """Call the model with one or more images and return a single LaTeX body."""

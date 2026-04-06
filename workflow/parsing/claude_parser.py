@@ -51,6 +51,18 @@ class ClaudeParser(BaseParser):
         self._model = model
         self._system_prompt = build_prompt(fidelity)
 
+    def complete_text(self, system_prompt: str, user_text: str) -> str:
+        try:
+            message = self._client.messages.create(
+                model=self._model,
+                max_tokens=8096,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_text}],
+            )
+            return message.content[0].text
+        except Exception as exc:
+            raise RuntimeError(f"Anthropic API call failed: {exc}") from exc
+
     def parse_images(self, image_paths: list[Path]) -> str:
         image_paths = [Path(p) for p in image_paths]
 

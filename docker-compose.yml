@@ -13,15 +13,37 @@ services:
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
 
-  worker:
+  parser:
     build: .
-    command: python -m workflow.worker
+    command: python -m workflow.parser
     env_file: .env
     environment:
       INBOX_DIR: /srv/notes/inbox
       OUTPUT_DIR: /srv/notes/output
-      DB_PATH: /srv/notes/jobs.db
       TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
+    volumes:
+      - ${NOTES_DIR:-/srv/notes}:/srv/notes
+    depends_on:
+      - api
+
+  compiler:
+    build: .
+    command: python -m workflow.compiler
+    env_file: .env
+    environment:
+      OUTPUT_DIR: /srv/notes/output
+      TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
+    volumes:
+      - ${NOTES_DIR:-/srv/notes}:/srv/notes
+    depends_on:
+      - api
+
+  debugger:
+    build: .
+    command: python -m workflow.debugger
+    env_file: .env
+    environment:
+      OUTPUT_DIR: /srv/notes/output
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
     depends_on:

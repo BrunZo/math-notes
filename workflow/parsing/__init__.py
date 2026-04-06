@@ -1,9 +1,10 @@
 from pathlib import Path
 
+from .base import BaseAIClient
 from .claude_parser import ClaudeParser
 from .gemini_parser import GeminiParser
 
-__all__ = ["ClaudeParser", "GeminiParser", "MODELS_BY_PROVIDER", "MODEL_REGISTRY", "transcribe_images"]
+__all__ = ["BaseAIClient", "ClaudeParser", "GeminiParser", "MODELS_BY_PROVIDER", "MODEL_REGISTRY", "transcribe_images"]
 
 # Provider → available model IDs. Single source of truth.
 MODELS_BY_PROVIDER: dict[str, list[str]] = {

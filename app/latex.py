@@ -31,6 +31,27 @@ def compile(tex_path: Path) -> bytes:
         return (tmp / tex_path.with_suffix(".pdf").name).read_bytes()
 
 
+def compile_single(tex_path: Path) -> bytes:
+    """Compile a body-only .tex file by wrapping it in a master document."""
+    master_src = _jinja_env.get_template("master.tex.j2").render(
+        course_name=tex_path.parent.name.translate(_LATEX_SPECIAL),
+        tex_paths=[tex_path.name],
+    )
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        shutil.copy2(tex_path, tmp / tex_path.name)
+        (tmp / "master.tex").write_text(master_src, encoding="utf-8")
+        result = subprocess.run(
+            ["tectonic", str(tmp / "master.tex")],
+            cwd=tmpdir,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr)
+        return (tmp / "master.pdf").read_bytes()
+
+
 def compile_master(out_dir: Path) -> bytes:
     """Generate a master.tex from all .tex files in out_dir and return compiled PDF bytes."""
     tex_files = sorted(
