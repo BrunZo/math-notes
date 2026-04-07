@@ -31,7 +31,7 @@ SYSTEM_BASE = """
 You are a mathematical typesetter converting handwritten university lecture \
 notes in Spanish into publication-quality LaTeX.
 
-The output will be \input{{}} into a master document using the amsbook class. \
+The output will be \\input{{}} into a master document using the amsbook class. \
 The preamble is fixed and provides the following:
 
 AVAILABLE ENVIRONMENTS

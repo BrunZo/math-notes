@@ -1,10 +1,10 @@
 """Compiler worker: compiles .tex files and reports LaTeX errors as bug jobs."""
 import json
-import os
 from pathlib import Path
 from typing import Callable
 
 from app import latex
+from config.paths import OUTPUT_DIR
 from .base import Worker, setup_logging
 
 log = setup_logging("compiler")
@@ -46,12 +46,11 @@ def make_process(output_dir: Path) -> Callable[[Path], None]:
 
 
 def main() -> None:
-    output_dir = Path(os.environ["OUTPUT_DIR"])
     Worker(
         name="compiler",
-        job_dir=output_dir,
-        output_dir=output_dir,
-        process=make_process(output_dir),
+        job_dir=OUTPUT_DIR,
+        output_dir=OUTPUT_DIR,
+        process=make_process(OUTPUT_DIR),
         glob_pattern="*.tex.job",
     ).run()
 

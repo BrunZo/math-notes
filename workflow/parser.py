@@ -1,9 +1,9 @@
 """Parser worker: transcribes images to LaTeX and signals the compiler."""
 import json
-import os
 from pathlib import Path
 from typing import Callable
 
+from config.paths import INBOX_DIR, OUTPUT_DIR
 from .base import Worker, setup_logging
 from .parsing import transcribe_images
 
@@ -58,13 +58,11 @@ def make_process(inbox_dir: Path, output_dir: Path) -> Callable[[Path], None]:
 
 
 def main() -> None:
-    inbox_dir = Path(os.environ["INBOX_DIR"])
-    output_dir = Path(os.environ["OUTPUT_DIR"])
     Worker(
         name="parser",
-        job_dir=inbox_dir,
-        output_dir=output_dir,
-        process=make_process(inbox_dir, output_dir),
+        job_dir=INBOX_DIR,
+        output_dir=OUTPUT_DIR,
+        process=make_process(INBOX_DIR, OUTPUT_DIR),
     ).run()
 
 
