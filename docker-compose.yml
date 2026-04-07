@@ -36,3 +36,10 @@ services:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
     depends_on:
       - api
+
+  extractor:
+    build: .
+    command: python -m workflow.extractor
+    env_file: .env
+    volumes:
+      - ${NOTES_DIR:-/srv/notes}:/srv/notes

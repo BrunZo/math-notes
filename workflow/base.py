@@ -17,21 +17,28 @@ def setup_logging(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
+def glob_finder(directory: Path, pattern: str) -> Callable[[], Path | None]:
+    """Return a job-finder that yields the first file matching *pattern* in *directory*."""
+    def find() -> Path | None:
+        if not directory.exists():
+            return None
+        return next((f for f in sorted(directory.rglob(pattern))), None)
+    return find
+
+
 @dataclass
 class Worker:
     name: str
-    job_dir: Path
-    output_dir: Path
+    find_job: Callable[[], Path | None]
     process: Callable[[Path], None]
-    glob_pattern: str = "*.job"
     poll_interval: int = 5
 
     def run(self) -> None:
         log = logging.getLogger(self.name)
-        log.info("started (job_dir=%s, output_dir=%s)", self.job_dir, self.output_dir)
+        log.info("started")
         try:
             while True:
-                job = self._find_job()
+                job = self.find_job()
                 if job is None:
                     time.sleep(self.poll_interval)
                     continue
@@ -44,8 +51,3 @@ class Worker:
         except KeyboardInterrupt:
             log.info("shutting down")
             sys.exit(0)
-
-    def _find_job(self) -> Path | None:
-        if not self.job_dir.exists():
-            return None
-        return next((f for f in sorted(self.job_dir.rglob(self.glob_pattern))), None)

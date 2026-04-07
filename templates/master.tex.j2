@@ -27,6 +27,7 @@ bookmarksopenlevel=0]{hyperref}
 \renewcommand{\chaptername}{Clase}
 \renewcommand{\proofname}{Demostración}
 \renewcommand{\partname}{Parte}
+\renewcommand{\figurename}{Figura}
 \renewcommand{\appendixname}{Apéndice}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -44,10 +45,9 @@ bookmarksopenlevel=0]{hyperref}
 \newtheorem*{conjecture*}{Conjetura}
 
 \theoremstyle{definition}
-\newtheorem*{definition}{Definición}
-\newtheorem*{example}{Ejemplo}
-\newtheorem{exercise}{Ejercicio}
-\renewcommand{\theexercise}{\Roman{exercise}}
+\newtheorem{definition}[theorem]{Definición}
+\newtheorem{example}[theorem]{Ejemplo}
+\newtheorem{exercise}[theorem]{Ejercicio}
 
 \theoremstyle{remark}
 \newtheorem*{remark}{Observación}

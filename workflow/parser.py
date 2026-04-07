@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Callable
 
 from config.paths import INBOX_DIR, OUTPUT_DIR
-from .base import Worker, setup_logging
+from .base import Worker, glob_finder, setup_logging
 from .parsing import transcribe_images
 
 log = setup_logging("parser")
@@ -60,8 +60,7 @@ def make_process(inbox_dir: Path, output_dir: Path) -> Callable[[Path], None]:
 def main() -> None:
     Worker(
         name="parser",
-        job_dir=INBOX_DIR,
-        output_dir=OUTPUT_DIR,
+        find_job=glob_finder(INBOX_DIR, "*.job"),
         process=make_process(INBOX_DIR, OUTPUT_DIR),
     ).run()
 

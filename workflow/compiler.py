@@ -5,7 +5,7 @@ from typing import Callable
 
 from app import latex
 from config.paths import OUTPUT_DIR
-from .base import Worker, setup_logging
+from .base import Worker, glob_finder, setup_logging
 
 log = setup_logging("compiler")
 
@@ -48,10 +48,8 @@ def make_process(output_dir: Path) -> Callable[[Path], None]:
 def main() -> None:
     Worker(
         name="compiler",
-        job_dir=OUTPUT_DIR,
-        output_dir=OUTPUT_DIR,
+        find_job=glob_finder(OUTPUT_DIR, "*.tex.job"),
         process=make_process(OUTPUT_DIR),
-        glob_pattern="*.tex.job",
     ).run()
 
 
