@@ -1,0 +1,155 @@
+"""CLI: python -m expand "section title" --model <model-id>
+
+Finds the matching section in the course index, extracts its LaTeX block,
+expands it with an LLM, and patches the .tex file in place.
+"""
+import argparse
+import difflib
+from dotenv import load_dotenv
+import json
+import re
+import sys
+from pathlib import Path
+
+from config.paths import OUTPUT_DIR
+from workflow.parsing import MODEL_REGISTRY
+from workflow.parsing.base import LATEX_CONSTRAINTS
+
+_RE_SECTION = re.compile(r'^\s*\\(chapter|section|subsection)\{([^}]*)\}')
+
+
+def collect_sections() -> list[dict]:
+    """Return all sections from every index.json under OUTPUT_DIR."""
+    candidates = []
+    for index_path in sorted(OUTPUT_DIR.rglob("**/index.json")):
+        print(index_path)
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        course_dir = index_path.parent
+        for file_stem, file_meta in index.get("files", {}).items():
+            tex_path = course_dir / f"{file_stem}.tex"
+            if not tex_path.exists():
+                continue
+            for section in file_meta.get("sections", []):
+                candidates.append({
+                    "title": section["title"],
+                    "type": section["type"],
+                    "line": section["line"],
+                    "tex_path": tex_path,
+                    "course_index": index,
+                })
+    return candidates
+
+
+def fuzzy_match(query: str, candidates: list[dict]) -> list[dict]:
+    query_lower = query.lower()
+    titles_lower = [c["title"].lower() for c in candidates]
+    close = set(difflib.get_close_matches(query_lower, titles_lower, n=10, cutoff=0.4))
+    seen: set[tuple] = set()
+    matches = []
+    for i, c in enumerate(candidates):
+        t = titles_lower[i]
+        if t in close or query_lower in t or t in query_lower:
+            key = (c["tex_path"], c["line"])
+            if key not in seen:
+                seen.add(key)
+                matches.append(c)
+    return matches
+
+
+def extract_block(tex_path: Path, start_line: int) -> tuple[int, int, list[str]]:
+    """Return (start_idx, end_idx, all_lines) for the section block (0-indexed half-open)."""
+    all_lines = tex_path.read_text(encoding="utf-8").splitlines()
+    start = start_line - 1
+    end = len(all_lines)
+    for i in range(start + 1, len(all_lines)):
+        if _RE_SECTION.match(all_lines[i]):
+            end = i
+            break
+    return start, end, all_lines
+
+
+def build_outline(course_index: dict) -> str:
+    lines = []
+    for file_stem, file_meta in sorted(course_index.get("files", {}).items()):
+        lines.append(f"  [{file_stem}]")
+        for s in file_meta.get("sections", []):
+            indent = "    " if s["type"] == "subsection" else "  "
+            lines.append(f"{indent}{s['type']}: {s['title']}")
+    return "\n".join(lines)
+
+
+def build_system_prompt(course_index: dict) -> str:
+    return (
+        "You are expanding a section of university-level mathematics lecture notes.\n"
+        "The notes are in Spanish; maintain that language and register.\n"
+        "Output ONLY the LaTeX for this section, starting with the \\section{...} line.\n\n"
+        + LATEX_CONSTRAINTS + "\n\n"
+        "COURSE OUTLINE (context only — do not reproduce):\n"
+        + build_outline(course_index) + "\n\n"
+        "TASK\n"
+        "Expand the section below into a complete, self-contained textbook-quality section.\n"
+        "Preserve the \\section{...} header exactly. Fill in full proofs, motivate definitions,\n"
+        "add transitional prose. Do not invent theorems not implied by the existing content.\n"
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Expand a LaTeX section using an LLM.")
+    parser.add_argument("query", help="Section title to search for (fuzzy)")
+    parser.add_argument("--model", "-m", required=True,
+                        help=f"Model ID. Available: {', '.join(MODEL_REGISTRY)}")
+    args = parser.parse_args()
+
+    if args.model not in MODEL_REGISTRY:
+        print(f"Unknown model '{args.model}'. Available: {', '.join(MODEL_REGISTRY)}",
+              file=sys.stderr)
+        sys.exit(1)
+
+    candidates = collect_sections()
+    if not candidates:
+        print(f"No index.json found under {OUTPUT_DIR}. Run the extractor first.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    matches = fuzzy_match(args.query, candidates)
+
+    if not matches:
+        print(f"No sections found matching '{args.query}'.", file=sys.stderr)
+        sys.exit(1)
+
+    if len(matches) == 1:
+        chosen = matches[0]
+    else:
+        print("Multiple matches found:")
+        for i, m in enumerate(matches, 1):
+            print(f"  {i}. [{m['tex_path'].parent.name}/{m['tex_path'].stem}] "
+                  f"{m['type']}: {m['title']} (line {m['line']})")
+        while True:
+            raw = input(f"Pick [1-{len(matches)}]: ").strip()
+            if raw.isdigit() and 1 <= int(raw) <= len(matches):
+                chosen = matches[int(raw) - 1]
+                break
+            print("Invalid choice.")
+
+    start, end, all_lines = extract_block(chosen["tex_path"], chosen["line"])
+    block = all_lines[start:end]
+
+    print(f"Expanding \"{chosen['title']}\" ({len(block)} lines) with {args.model}…")
+
+    client = MODEL_REGISTRY[args.model](model=args.model, fidelity="standard")
+    expanded = client.complete_text(build_system_prompt(chosen["course_index"]),
+                                    "\n".join(block))
+
+    new_lines = all_lines[:start] + expanded.splitlines() + all_lines[end:]
+    chosen["tex_path"].write_text("\n".join(new_lines), encoding="utf-8")
+
+    print(f"Done. {len(block)} → {len(expanded.splitlines())} lines "
+          f"in {chosen['tex_path']}")
+
+
+if __name__ == "__main__":
+    load_dotenv()
+    main()

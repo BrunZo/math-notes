@@ -2,30 +2,29 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Literal
 
-PREAMBLE_REFERENCE = r"""
-\newtheorem{theorem}{Teorema}[part]
-\newtheorem*{theorem*}{Teorema}
-\newtheorem{proposition}[theorem]{Proposición}
-\newtheorem{lemma}[theorem]{Lema}
-\newtheorem{corollary}[theorem]{Corolario}
-\newtheorem{conjecture}[theorem]{Conjetura}
-\newtheorem*{conjecture*}{Conjetura}
-\theoremstyle{definition}
-\newtheorem*{definition}{Definición}
-\newtheorem*{example}{Ejemplo}
-\newtheorem{exercise}{Ejercicio}
-\renewcommand{\theexercise}{\Roman{exercise}}
-\theoremstyle{remark}
-\newtheorem*{remark}{Observación}
-\newcommand{\N}{\mathbb{N}}
-\newcommand{\Z}{\mathbb{Z}}
-\newcommand{\Q}{\mathbb{Q}}
-\newcommand{\R}{\mathbb{R}}
-\newcommand{\C}{\mathbb{C}}
-\newcommand{\bbk}{\Bbbk}
-\newcommand{\eps}{\varepsilon}
-\newcommand{\abs}[1]{\lvert #1 \rvert}
-"""
+LATEX_CONSTRAINTS = """
+AVAILABLE ENVIRONMENTS
+  Numbered (share counter, reset per \\part):
+    theorem, proposition, lemma, corollary, conjecture, definition, example, exercise
+  Unnumbered:
+    theorem*, conjecture*, remark
+  Other:
+    proof     (from amsthm, label is "Demostración")
+  Add a \\label for theorem, proposition, lemma, corollary, conjecture, definition,
+  example or exercise if relevant.
+
+AVAILABLE COMMANDS
+  Number sets : \\N  \\Z  \\Q  \\R  \\C  \\bbk (blackboard-bold k)
+  Other math  : \\eps (\\varepsilon), \\abs{#1} (|·|), \\1 (bold 1),
+                \\Re (Re), \\calD (𝒟), \\li, \\mcd, \\sqfree (operator names)
+  Do NOT define new commands. Do NOT use \\norm — use \\lVert·\\rVert or \\abs.
+
+STRUCTURE RULES
+  - Use \\section and \\subsection (not starred) for internal structure.
+  - Do NOT emit \\part, \\setcounter, \\newtheorem, \\usepackage,
+    \\begin{document}, or any preamble content.
+  - Do NOT wrap output in markdown fences.
+""".strip()
 
 SYSTEM_BASE = """
 You are a mathematical typesetter converting handwritten university lecture \
@@ -36,12 +35,13 @@ The preamble is fixed and provides the following:
 
 AVAILABLE ENVIRONMENTS
   Numbered (share counter, reset per \\part):
-    theorem, proposition, lemma, corollary, conjecture
+    theorem, proposition, lemma, corollary, conjecture, definition, example, exercise
   Unnumbered:
-    theorem*, conjecture*, definition, example, remark
+    theorem*, conjecture*, remark
   Other:
-    exercise  (numbered with Roman numerals)
     proof     (from amsthm, label is "Demostración")
+  Please, add a \\label for theorem, proposition, lemma, corollary, conjecture, \
+  definition, example or exercise if relevant.
 
 AVAILABLE COMMANDS
   Number sets : \\N  \\Z  \\Q  \\R  \\C  \\bbk (blackboard-bold k, i.e. \\Bbbk)
@@ -49,14 +49,9 @@ AVAILABLE COMMANDS
                 \\1 (bold 1), \\Re (Re), \\calD (𝒟),
                 \\li, \\mcd, \\sqfree (operator names)
   Do NOT define new commands. Do NOT use \\norm — use \\lVert·\\rVert directly \
-or \\abs for absolute values.
-
-PREAMBLE REFERENCE (ground truth — do not reproduce in output):
-{preamble}
+  or \\abs for absolute values.
 
 STRUCTURE RULES
-  - Begin with \\chapter{{Clase N}} where N is the lecture number visible \
-in the image. Use \\chapter* if no number is discernible.
   - Use \\section and \\subsection (not starred) for internal structure \
 so the TOC is populated.
   - Do NOT emit \\part, \\setcounter, \\newtheorem, \\usepackage, \
@@ -75,10 +70,11 @@ MATH NOTATION
   - The equation counter resets per \\part, not per chapter — do not \
 reference equation numbers manually.
   - \\allowdisplaybreaks is active; long align blocks are fine.
+  - You MAY add references to other theorems, definitions using \\label and \\ref
 
 FIGURES
   - Reproduce diagrams as TikZ inside \\begin{{figure}}[H] with \\caption.
-  - Available tikz libraries: arrows.meta, calc, decorations.markings, \
+  - Available tikz libraries: arrows.meta, calc, cd, decorations.markings, \
 decorations.pathreplacing, babel.
 
 {fidelity_instructions}
@@ -140,8 +136,8 @@ WHAT YOU MAY DO FREELY
 - Replace shorthand ("WLOG", "cfr.", "⟹ trivial") with full mathematical prose.
 
 WHAT YOU MUST NOT DO
-- Invent theorems, lemmas, or definitions not implied by the source.
-- Change the statement of any result visible in the image.
+- Invent theorems, lemmas, or definitions completely unrelated to the subject.
+- Change the statement of any result visible in the image (unless the statement is wrong).
 - Add content from a different mathematical area than what the notes cover.
 - Use a register that is too informal or too advanced for the course level.
 """
@@ -150,7 +146,6 @@ WHAT YOU MUST NOT DO
 def build_prompt(degree: Literal["conservative", "standard", "liberal"]) -> str:
     return SYSTEM_BASE.format(
         fidelity_instructions=FIDELITY_BLOCKS[degree],
-        preamble=PREAMBLE_REFERENCE,
     )
 
 
