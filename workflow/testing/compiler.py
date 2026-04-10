@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from config.paths import OUTPUT_DIR
+from config.paths import OUTPUT_DIR, TEX_BUGS_DIR
 from latex.compile import compile_single
 from workflow.base import Worker, glob_finder, setup_logging
 
@@ -32,7 +32,7 @@ def make_process(output_dir: Path) -> Callable[[Path], None]:
         except RuntimeError as exc:
             error_msg = str(exc)
             log.warning("compile failed for %s: %s", rel, error_msg[:120])
-            bug_dir = output_dir / "bugs" / rel.parent
+            bug_dir = TEX_BUGS_DIR / rel.parent
             bug_dir.mkdir(parents=True, exist_ok=True)
             bug_data = {
                 "tex_path": rel.as_posix(), "error": error_msg,

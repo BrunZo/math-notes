@@ -6,6 +6,7 @@ from typing import Callable
 from config.paths import INBOX_DIR, OUTPUT_DIR
 from workflow.base import Worker, glob_finder, setup_logging
 from .parsing import transcribe_images
+from .parsing.base import provenance_header
 
 log = setup_logging("parser")
 
@@ -40,7 +41,8 @@ def make_process(inbox_dir: Path, output_dir: Path) -> Callable[[Path], None]:
 
         try:
             body = transcribe_images([str(p) for p in image_paths], model=model, fidelity=fidelity)
-            (out_dir / f"{stem}.tex").write_text(body, encoding="utf-8")
+            header = provenance_header(image_paths, model)
+            (out_dir / f"{stem}.tex").write_text(f"{header}\n{body}", encoding="utf-8")
             for img in image_paths:
                 (out_dir / img.name).write_bytes(img.read_bytes())
             # Signal compiler that this .tex needs compilation.
