@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Callable
 
-from config.paths import OUTPUT_DIR
+from config.paths import OUTPUT_DIR, TEX_BUGS_DIR
 from workflow.base import Worker, glob_finder, setup_logging
 from workflow.ingestion.parsing import MODEL_REGISTRY
 
@@ -94,7 +94,7 @@ def make_process(output_dir: Path) -> Callable[[Path], None]:
 def main() -> None:
     Worker(
         name="debugger",
-        find_job=glob_finder(OUTPUT_DIR / "bugs", "*.bug"),
+        find_job=glob_finder(TEX_BUGS_DIR, "*.bug"),
         process=make_process(OUTPUT_DIR),
     ).run()
 

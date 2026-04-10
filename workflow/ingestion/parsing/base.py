@@ -1,4 +1,6 @@
+import hashlib
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -161,6 +163,16 @@ class BaseParser(BaseAIClient):
     def parse_images(self, image_paths: list[Path]) -> str:
         """Call the model with one or more images and return a single LaTeX body."""
         ...
+
+
+def provenance_header(source_paths: list[Path], model: str) -> str:
+    """Return a LaTeX comment block with source file provenance."""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    lines = []
+    for p in source_paths:
+        sha = hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+        lines.append(f"% source: {p.name}, sha256:{sha}, extracted: {now}, model: {model}")
+    return "\n".join(lines)
 
 
 def media_type(path: Path) -> str:
