@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from config.paths import INBOX_DIR as _INBOX_DIR, OUTPUT_DIR as _OUTPUT_DIR
 from workflow.ingestion.parsing import MODELS_BY_PROVIDER, MODEL_REGISTRY
-from workflow.latex import compiler as latex
+from latex import compile as latex
 
 _SECRET_TOKEN = os.environ["SECRET_TOKEN"]
 

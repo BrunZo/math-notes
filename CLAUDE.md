@@ -62,8 +62,11 @@ workflow/extractor.py  (poll loop)
 - `ingestion/parsing/claude_parser.py` — Anthropic API. Uses `ANTHROPIC_API_KEY`.
 - `ingestion/parsing/gemini_parser.py` — Google Gemini via `google-genai`. Uses `GOOGLE_API_KEY`.
 - `ingestion/parsing/base.py` — `BaseParser` ABC, system prompt builder (`build_prompt(fidelity)`), fidelity blocks, `LATEX_CONSTRAINTS`.
-- `latex/compiler.py` — tectonic compilation functions (`compile`, `compile_single`, `compile_master`) and compiler worker (polls for `*.tex.job`).
-- `latex/debugger.py` — AI-based LaTeX error fixing worker (polls for `*.bug`).
+- `testing/compiler.py` — compiler worker (polls for `*.tex.job`, calls `latex.compile`).
+- `testing/debugger.py` — AI-based LaTeX error fixing worker (polls for `*.bug`).
+
+**`latex/`** — tectonic compilation (pure library, no worker logic).
+- `compile.py` — `compile(tex_path)`, `compile_single(tex_path)`, `compile_master(out_dir)`. Shells out to tectonic, returns PDF bytes.
 - `extractor.py` — metadata extraction worker (polls for stale `.tex` files).
 - `expand.py` — CLI tool for expanding sections with AI.
 

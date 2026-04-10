@@ -19,7 +19,7 @@ services:
 
   compiler:
     build: .
-    command: python -m workflow.latex.compiler
+    command: python -m workflow.testing.compiler
     env_file: .env
     environment:
       TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
@@ -30,7 +30,7 @@ services:
 
   debugger:
     build: .
-    command: python -m workflow.latex.debugger
+    command: python -m workflow.testing.debugger
     env_file: .env
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
