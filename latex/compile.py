@@ -23,27 +23,6 @@ class CompileResult:
     stderr: str = ""
 
 
-def compile(tex_path: Path) -> CompileResult:
-    """Compile a single .tex file and return a CompileResult."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
-        dest = tmp / tex_path.name
-        dest.write_text(tex_path.read_text(encoding="utf-8"), encoding="utf-8")
-        result = subprocess.run(
-            ["tectonic", "-Z", "continue-on-errors", str(dest)],
-            cwd=tmpdir,
-            capture_output=True,
-            text=True,
-        )
-        pdf_path = tmp / tex_path.with_suffix(".pdf").name
-        pdf_bytes = pdf_path.read_bytes() if pdf_path.exists() else None
-        return CompileResult(
-            success=result.returncode == 0,
-            pdf_bytes=pdf_bytes,
-            stderr=result.stderr,
-        )
-
-
 def compile_single(tex_path: Path) -> CompileResult:
     """Compile a body-only .tex file by wrapping it in a master document."""
     master_src = _jinja_env.get_template("master.tex.j2").render(
