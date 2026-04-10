@@ -17,21 +17,12 @@ services:
     depends_on:
       - api
 
-  compiler:
-    build: .
-    command: python -m workflow.testing.compiler
-    env_file: .env
-    environment:
-      TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
-    volumes:
-      - ${NOTES_DIR:-/srv/notes}:/srv/notes
-    depends_on:
-      - api
-
   debugger:
     build: .
     command: python -m workflow.testing.debugger
     env_file: .env
+    environment:
+      TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
     depends_on:
