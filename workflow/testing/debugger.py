@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Callable
 
 from config.paths import OUTPUT_DIR
-from .base import Worker, glob_finder, setup_logging
-from .parsing import MODEL_REGISTRY
+from workflow.base import Worker, glob_finder, setup_logging
+from workflow.ingestion.parsing import MODEL_REGISTRY
 
 log = setup_logging("debugger")
 

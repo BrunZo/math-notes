@@ -1,3 +1,4 @@
+"""LaTeX compilation via tectonic."""
 import shutil
 import subprocess
 import tempfile

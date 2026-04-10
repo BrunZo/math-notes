@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Callable
 
 from config.paths import INBOX_DIR, OUTPUT_DIR
-from .base import Worker, glob_finder, setup_logging
+from workflow.base import Worker, glob_finder, setup_logging
 from .parsing import transcribe_images
 
 log = setup_logging("parser")

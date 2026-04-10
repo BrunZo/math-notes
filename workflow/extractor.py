@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from config.paths import OUTPUT_DIR
-from .base import Worker, setup_logging
+from workflow.base import Worker, setup_logging
 
 log = setup_logging("extractor")
 

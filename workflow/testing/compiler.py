@@ -3,9 +3,9 @@ import json
 from pathlib import Path
 from typing import Callable
 
-from app import latex
 from config.paths import OUTPUT_DIR
-from .base import Worker, glob_finder, setup_logging
+from latex.compile import compile_single
+from workflow.base import Worker, glob_finder, setup_logging
 
 log = setup_logging("compiler")
 
@@ -27,7 +27,7 @@ def make_process(output_dir: Path) -> Callable[[Path], None]:
             return
 
         try:
-            latex.compile_single(tex_path)
+            compile_single(tex_path)
             log.info("compiled %s", rel)
         except RuntimeError as exc:
             error_msg = str(exc)
