@@ -14,5 +14,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ app/
 COPY config/ config/
 COPY latex/ latex/
+COPY models/ models/
 COPY workflow/ workflow/
 COPY templates/ templates/
