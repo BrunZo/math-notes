@@ -10,7 +10,7 @@ services:
 
   parser:
     build: .
-    command: python -m workflow.parser
+    command: python -m workflow.ingestion.parser
     env_file: .env
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
@@ -19,7 +19,7 @@ services:
 
   compiler:
     build: .
-    command: python -m workflow.compiler
+    command: python -m workflow.latex.compiler
     env_file: .env
     environment:
       TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
@@ -30,7 +30,7 @@ services:
 
   debugger:
     build: .
-    command: python -m workflow.debugger
+    command: python -m workflow.latex.debugger
     env_file: .env
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes

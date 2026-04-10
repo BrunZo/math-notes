@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 
 from config.paths import OUTPUT_DIR
-from workflow.parsing import MODEL_REGISTRY
-from workflow.parsing.base import LATEX_CONSTRAINTS
+from workflow.ingestion.parsing import MODEL_REGISTRY
+from workflow.ingestion.parsing.base import LATEX_CONSTRAINTS
 
 _RE_SECTION = re.compile(r'^\s*\\(chapter|section|subsection)\{([^}]*)\}')
 

@@ -21,7 +21,7 @@ pip install <package>           # then add to requirements.txt
 
 ## Architecture
 
-Two processes share a filesystem volume. The API writes job files; the worker consumes them.
+Multiple worker processes share a filesystem volume. The API writes job files; workers consume them.
 
 ```
 Browser / curl
@@ -34,24 +34,40 @@ app/main.py  (FastAPI)
      │  GET  /jobs            ←  scans OUTPUT_DIR + INBOX_DIR
      │
      ▼ (shared volume)
-workflow/worker.py  (poll loop)
+workflow/ingestion/parser.py  (poll loop)
      │  finds *.job in INBOX_DIR
-     │  calls workflow/parsing → AI API → body-only LaTeX
-     └► writes OUTPUT_DIR/{path}.tex
+     │  calls workflow/ingestion/parsing → AI API → body-only LaTeX
+     └► writes OUTPUT_DIR/{path}.tex + .tex.job signal
+         │
+workflow/latex/compiler.py  (poll loop)
+     │  finds *.tex.job in OUTPUT_DIR
+     │  compiles with tectonic → success or .bug
+         │
+workflow/latex/debugger.py  (poll loop)
+     │  finds *.bug in OUTPUT_DIR/bugs
+     │  AI-based fix → re-signals compiler
+         │
+workflow/extractor.py  (poll loop)
+         finds stale *.tex in OUTPUT_DIR
+         extracts metadata → .meta.json + index.json
 ```
 
 **`app/`** — FastAPI server.
-- `main.py` — all HTTP endpoints. Reads env vars directly (`INBOX_DIR`, `OUTPUT_DIR`, `SECRET_TOKEN`).
-- `latex.py` — `compile(tex_path)`: shells out to `tectonic` and returns PDF bytes. Called on demand by `GET /job/{path}.pdf`.
+- `main.py` — all HTTP endpoints. Reads env vars directly (`SECRET_TOKEN`). Imports paths from `config/paths.py`.
 
-**`workflow/`** — background worker and AI parsers.
-- `worker.py` — polls `INBOX_DIR` every 5 s for `*.job` files, calls `transcribe_images`, writes `.tex`.
-- `parsing/__init__.py` — `transcribe_images(image_paths, model, fidelity)`. Exposes `MODEL_REGISTRY` (flat `model_id → class`) and `MODELS_BY_PROVIDER` (grouped, served by `GET /models`).
-- `parsing/claude_parser.py` — Anthropic API. Uses `ANTHROPIC_API_KEY`.
-- `parsing/gemini_parser.py` — Google Gemini via `google-genai`. Uses `GOOGLE_API_KEY`.
-- `parsing/base.py` — `BaseParser` ABC, system prompt builder (`build_prompt(fidelity)`), fidelity blocks.
+**`workflow/`** — background workers and AI parsers.
+- `base.py` — generic `Worker` dataclass (poll loop), `glob_finder`, `setup_logging`.
+- `ingestion/parser.py` — parser worker: polls INBOX_DIR for `*.job` files, calls `transcribe_images`, writes `.tex`.
+- `ingestion/parsing/__init__.py` — `transcribe_images(image_paths, model, fidelity)`. Exposes `MODEL_REGISTRY` (flat `model_id → class`) and `MODELS_BY_PROVIDER` (grouped, served by `GET /models`).
+- `ingestion/parsing/claude_parser.py` — Anthropic API. Uses `ANTHROPIC_API_KEY`.
+- `ingestion/parsing/gemini_parser.py` — Google Gemini via `google-genai`. Uses `GOOGLE_API_KEY`.
+- `ingestion/parsing/base.py` — `BaseParser` ABC, system prompt builder (`build_prompt(fidelity)`), fidelity blocks, `LATEX_CONSTRAINTS`.
+- `latex/compiler.py` — tectonic compilation functions (`compile`, `compile_single`, `compile_master`) and compiler worker (polls for `*.tex.job`).
+- `latex/debugger.py` — AI-based LaTeX error fixing worker (polls for `*.bug`).
+- `extractor.py` — metadata extraction worker (polls for stale `.tex` files).
+- `expand.py` — CLI tool for expanding sections with AI.
 
-**`templates/`** — `index.html` (single-page UI), `master.tex.j2` (unused, kept for reference).
+**`templates/`** — `index.html` (single-page UI), `master.tex.j2` (LaTeX master document template), `course_full.html` (lecture viewer).
 
 ## Job file format
 
@@ -79,6 +95,6 @@ Images are listed relative to the job file's directory.
 
 ## Key notes
 
-- Adding a new AI provider: add a parser class with a `MODELS: list[str]` attribute and `__init__(self, model: str, fidelity: str)` to `workflow/parsing/`, then register it in `workflow/parsing/__init__.py` (`MODELS_BY_PROVIDER` and `MODEL_REGISTRY`). The frontend and validation pick it up automatically.
+- Adding a new AI provider: add a parser class with a `MODELS: list[str]` attribute and `__init__(self, model: str, fidelity: str)` to `workflow/ingestion/parsing/`, then register it in `workflow/ingestion/parsing/__init__.py` (`MODELS_BY_PROVIDER` and `MODEL_REGISTRY`). The frontend and validation pick it up automatically.
 - The worker derives the output subdirectory from the job file's position relative to `INBOX_DIR`, so `INBOX_DIR/foo/bar/01.job` produces `OUTPUT_DIR/foo/bar/01.tex`.
 - LaTeX output is **body-only** (no `\documentclass`, no `\begin{document}`). The system prompt instructs the model to start with `\chapter`.
