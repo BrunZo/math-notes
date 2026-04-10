@@ -155,17 +155,17 @@ async def get_job_output(path: str):
         if tex_path.exists():
             return Response(content=tex_path.read_text(encoding="utf-8"), media_type="text/plain")
     elif suffix == ".pdf":
-        try:
-            if stem == "master":
-                pdf_bytes = latex.compile_master(_OUTPUT_DIR / parent)
-            elif tex_path.exists():
-                pdf_bytes = latex.compile_single(tex_path)
-            else:
-                pdf_bytes = None
-        except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
-        if pdf_bytes is not None:
-            return Response(content=pdf_bytes, media_type="application/pdf")
+        if stem == "master":
+            result = latex.compile_master(_OUTPUT_DIR / parent)
+        elif tex_path.exists():
+            result = latex.compile_single(tex_path)
+        else:
+            result = None
+        if result is not None:
+            if not result.success:
+                raise HTTPException(status_code=500, detail=result.stderr)
+            if result.pdf_bytes is not None:
+                return Response(content=result.pdf_bytes, media_type="application/pdf")
 
     error_path = _OUTPUT_DIR / parent / f"{stem}.error"
     if error_path.exists():

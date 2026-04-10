@@ -1,6 +1,5 @@
 """Debugger worker: uses an AI model to fix LaTeX compilation errors."""
 import json
-import re
 from pathlib import Path
 from typing import Callable
 
@@ -9,8 +8,6 @@ from workflow.base import Worker, glob_finder, setup_logging
 from workflow.ingestion.parsing import MODEL_REGISTRY
 
 log = setup_logging("debugger")
-
-_SNIPPET_CONTEXT = 20  # lines before/after error location
 
 _DEBUG_SYSTEM_PROMPT = """
 You are a LaTeX debugging assistant. You will be given a snippet from a body-only \
@@ -30,22 +27,10 @@ conjecture*, definition, example, remark, exercise, proof.
 """.strip()
 
 
-def _extract_snippet(tex_lines: list[str], error_msg: str) -> tuple[int, int]:
-    """Return (start, end) 0-indexed slice bounds for the relevant snippet."""
-    line_nums = [int(m) for m in re.findall(r'\.tex:(\d+):', error_msg)]
-    if not line_nums:
-        return 0, len(tex_lines)
-    center = min(line_nums) - 1  # convert to 0-indexed
-    start = max(0, center - _SNIPPET_CONTEXT)
-    end = min(len(tex_lines), max(line_nums) + _SNIPPET_CONTEXT)
-    return start, end
-
-
 def make_process(output_dir: Path) -> Callable[[Path], None]:
     def process(job_path: Path) -> None:
         bug_data = json.loads(job_path.read_text(encoding="utf-8"))
         tex_rel = Path(bug_data["tex_path"])
-        error_msg = bug_data["error"]
         debug_model = bug_data.get("debug_model", "")
         debug_iters = bug_data.get("debug_iters", 0)
 
@@ -63,24 +48,31 @@ def make_process(output_dir: Path) -> Callable[[Path], None]:
             job_path.unlink(missing_ok=True)
             return
 
-        tex_lines = tex_path.read_text(encoding="utf-8").splitlines()
-        start, end = _extract_snippet(tex_lines, error_msg)
-        snippet = "\n".join(tex_lines[start:end])
+        # Build user prompt from structured errors with context.
+        errors = bug_data.get("errors", [])
+        if not errors:
+            # Fallback: use raw stderr if no structured errors.
+            user_text = f"COMPILER ERRORS:\n{bug_data.get('stderr', '')}"
+        else:
+            parts = []
+            for err in errors:
+                parts.append(f"ERROR (line {err['line']}): {err['message']}")
+                if err.get("context"):
+                    parts.append(err["context"])
+                parts.append("")
+            user_text = "\n".join(parts)
 
-        user_text = (
-            f"COMPILER ERROR:\n{error_msg}\n\n"
-            f"SNIPPET (lines {start + 1}–{end}):\n{snippet}"
-        )
+        tex_content = tex_path.read_text(encoding="utf-8")
+        user_text += f"\n\nFULL FILE:\n{tex_content}"
 
         client = MODEL_REGISTRY[debug_model](model=debug_model)
         try:
-            fixed_snippet = client.complete_text(_DEBUG_SYSTEM_PROMPT, user_text)
+            fixed = client.complete_text(_DEBUG_SYSTEM_PROMPT, user_text)
         except Exception as exc:
             log.error("AI call failed for %s: %s", tex_rel, exc)
             return
 
-        tex_lines[start:end] = fixed_snippet.splitlines()
-        tex_path.write_text("\n".join(tex_lines), encoding="utf-8")
+        tex_path.write_text(fixed, encoding="utf-8")
 
         # Re-signal compiler with one fewer iteration remaining.
         tex_job = json.dumps({"debug_model": debug_model, "debug_iters": debug_iters - 1})
