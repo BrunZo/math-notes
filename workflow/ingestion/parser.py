@@ -7,6 +7,7 @@ from config.paths import INBOX_DIR, OUTPUT_DIR
 from workflow.base import Worker, glob_finder, setup_logging
 from .parsing import transcribe_images
 from .parsing.base import provenance_header
+from .preprocessing import preprocess_all
 
 log = setup_logging("parser")
 
@@ -20,9 +21,11 @@ def make_process(inbox_dir: Path, output_dir: Path) -> Callable[[Path], None]:
         image_names: list[str] = config.get("images", [])
         image_paths = [input_dir / name for name in image_names]
 
-        def _clean_inbox():
+        def _clean_inbox(extra: list[Path] | None = None):
             for img in image_paths:
                 img.unlink(missing_ok=True)
+            for p in extra or []:
+                p.unlink(missing_ok=True)
             job_path.unlink(missing_ok=True)
 
         model = config.get("model", None)
@@ -40,17 +43,21 @@ def make_process(inbox_dir: Path, output_dir: Path) -> Callable[[Path], None]:
         out_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            body = transcribe_images([str(p) for p in image_paths], model=model, fidelity=fidelity)
+            processed_paths = preprocess_all(image_paths)
+            # Preprocessed files that differ from originals need cleanup
+            extra_files = [p for p in processed_paths if p not in image_paths]
+
+            body = transcribe_images([str(p) for p in processed_paths], model=model, fidelity=fidelity)
             header = provenance_header(image_paths, model)
             (out_dir / f"{stem}.tex").write_text(f"{header}\n{body}", encoding="utf-8")
-            for img in image_paths:
+            for img in processed_paths:
                 (out_dir / img.name).write_bytes(img.read_bytes())
             # Signal compiler that this .tex needs compilation.
             tex_job = json.dumps({"debug_model": debug_model, "debug_iters": debug_iters})
             (out_dir / f"{stem}.tex.job").write_text(tex_job, encoding="utf-8")
-            _clean_inbox()
-            log.info("done: %s (%d pages) → %s/%s.tex (model=%s, fidelity=%s)",
-                     stem, len(image_paths), out_dir.name, stem, model, fidelity)
+            _clean_inbox(extra_files)
+            log.info("done: %s (%d pages, %d after preprocessing) → %s/%s.tex (model=%s, fidelity=%s)",
+                     stem, len(image_paths), len(processed_paths), out_dir.name, stem, model, fidelity)
         except Exception as exc:
             (out_dir / f"{stem}.error").write_text(str(exc), encoding="utf-8")
             _clean_inbox()
