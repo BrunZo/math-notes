@@ -6,12 +6,13 @@ expands it with an LLM, and patches the .tex file in place.
 import argparse
 import difflib
 from dotenv import load_dotenv
-import json
 import re
 import sys
 from pathlib import Path
 
-from config.paths import OUTPUT_DIR
+from config.paths import DB_PATH, OUTPUT_DIR
+from models.helpers import build_outline as _db_build_outline, collect_sections as _db_collect_sections
+from models.schema import init_db
 from workflow.ingestion.parsing import MODEL_REGISTRY
 from workflow.ingestion.parsing.base import LATEX_CONSTRAINTS
 
@@ -19,27 +20,23 @@ _RE_SECTION = re.compile(r'^\s*\\(chapter|section|subsection)\{([^}]*)\}')
 
 
 def collect_sections() -> list[dict]:
-    """Return all sections from every index.json under OUTPUT_DIR."""
+    """Return all sections from the SQLite IR."""
+    conn = init_db(DB_PATH)
+    try:
+        rows = _db_collect_sections(conn)
+    finally:
+        conn.close()
     candidates = []
-    for index_path in sorted(OUTPUT_DIR.rglob("**/index.json")):
-        print(index_path)
-        try:
-            index = json.loads(index_path.read_text(encoding="utf-8"))
-        except Exception:
+    for row in rows:
+        tex_path = OUTPUT_DIR / row["file"]
+        if not tex_path.exists():
             continue
-        course_dir = index_path.parent
-        for file_stem, file_meta in index.get("files", {}).items():
-            tex_path = course_dir / f"{file_stem}.tex"
-            if not tex_path.exists():
-                continue
-            for section in file_meta.get("sections", []):
-                candidates.append({
-                    "title": section["title"],
-                    "type": section["type"],
-                    "line": section["line"],
-                    "tex_path": tex_path,
-                    "course_index": index,
-                })
+        candidates.append({
+            "title": row["title"],
+            "type": row["type"],
+            "line": row["line"],
+            "tex_path": tex_path,
+        })
     return candidates
 
 
@@ -71,24 +68,23 @@ def extract_block(tex_path: Path, start_line: int) -> tuple[int, int, list[str]]
     return start, end, all_lines
 
 
-def build_outline(course_index: dict) -> str:
-    lines = []
-    for file_stem, file_meta in sorted(course_index.get("files", {}).items()):
-        lines.append(f"  [{file_stem}]")
-        for s in file_meta.get("sections", []):
-            indent = "    " if s["type"] == "subsection" else "  "
-            lines.append(f"{indent}{s['type']}: {s['title']}")
-    return "\n".join(lines)
+def build_outline() -> str:
+    """Build course outline from the SQLite IR."""
+    conn = init_db(DB_PATH)
+    try:
+        return _db_build_outline(conn)
+    finally:
+        conn.close()
 
 
-def build_system_prompt(course_index: dict) -> str:
+def build_system_prompt() -> str:
     return (
         "You are expanding a section of university-level mathematics lecture notes.\n"
         "The notes are in Spanish; maintain that language and register.\n"
         "Output ONLY the LaTeX for this section, starting with the \\section{...} line.\n\n"
         + LATEX_CONSTRAINTS + "\n\n"
         "COURSE OUTLINE (context only — do not reproduce):\n"
-        + build_outline(course_index) + "\n\n"
+        + build_outline() + "\n\n"
         "TASK\n"
         "Expand the section below into a complete, self-contained textbook-quality section.\n"
         "Preserve the \\section{...} header exactly. Fill in full proofs, motivate definitions,\n"
@@ -110,7 +106,7 @@ def main() -> None:
 
     candidates = collect_sections()
     if not candidates:
-        print(f"No index.json found under {OUTPUT_DIR}. Run the extractor first.",
+        print(f"No sections found in IR database ({DB_PATH}). Run the extractor first.",
               file=sys.stderr)
         sys.exit(1)
 
@@ -140,7 +136,7 @@ def main() -> None:
     print(f"Expanding \"{chosen['title']}\" ({len(block)} lines) with {args.model}…")
 
     client = MODEL_REGISTRY[args.model](model=args.model, fidelity="standard")
-    expanded = client.complete_text(build_system_prompt(chosen["course_index"]),
+    expanded = client.complete_text(build_system_prompt(),
                                     "\n".join(block))
 
     new_lines = all_lines[:start] + expanded.splitlines() + all_lines[end:]

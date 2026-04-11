@@ -164,3 +164,32 @@ def get_dependency_graph(conn: sqlite3.Connection) -> list[dict]:
          "to_label": r[3], "ref_kind": r[4], "file": r[5]}
         for r in rows
     ]
+
+
+def collect_sections(conn: sqlite3.Connection) -> list[dict]:
+    """Return all sections with their file paths (for expand.py)."""
+    rows = conn.execute(
+        "SELECT s.title, s.level, s.line_start, f.path"
+        " FROM sections s JOIN files f ON s.file_id = f.id"
+        " ORDER BY f.path, s.line_start"
+    ).fetchall()
+    return [{"title": r[0], "type": r[1], "line": r[2], "file": r[3]} for r in rows]
+
+
+def build_outline(conn: sqlite3.Connection) -> str:
+    """Return a course outline string from the IR (replaces index.json-based outline)."""
+    rows = conn.execute(
+        "SELECT s.level, s.title, f.path"
+        " FROM sections s JOIN files f ON s.file_id = f.id"
+        " ORDER BY f.path, s.line_start"
+    ).fetchall()
+    lines = []
+    current_file = None
+    for level, title, path in rows:
+        stem = path.rsplit("/", 1)[-1].removesuffix(".tex")
+        if path != current_file:
+            current_file = path
+            lines.append(f"  [{stem}]")
+        indent = "    " if level == "subsection" else "  "
+        lines.append(f"{indent}{level}: {title}")
+    return "\n".join(lines)

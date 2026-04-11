@@ -5,3 +5,4 @@ google-genai
 jinja2
 python-multipart
 pymupdf
+pylatexenc
