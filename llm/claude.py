@@ -1,12 +1,11 @@
 import base64
+import os
 from pathlib import Path
 
 import anthropic
 import fitz
 
-import os
-
-from .base import BaseParser, build_prompt, media_type
+from .base import BaseAIClient, media_type
 
 # Anthropic enforces a 5 MB limit on the base64-encoded image string.
 # Base64 expands raw bytes by 4/3, so the raw file must stay under 3.75 MB.
@@ -39,35 +38,19 @@ def _encode_image(path: Path) -> tuple[bytes, str]:
     return pix.tobytes("jpeg", jpg_quality=40), "image/jpeg"
 
 
-class ClaudeParser(BaseParser):
+class ClaudeClient(BaseAIClient):
     MODELS = [
         "claude-opus-4-6",
         "claude-sonnet-4-6",
         "claude-haiku-4-5-20251001",
     ]
 
-    def __init__(self, model: str, fidelity: str = "standard"):
+    def __init__(self):
         self._client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        self._model = model
-        self._system_prompt = build_prompt(fidelity)
 
-    def complete_text(self, system_prompt: str, user_text: str) -> str:
-        try:
-            message = self._client.messages.create(
-                model=self._model,
-                max_tokens=8096,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_text}],
-            )
-            return message.content[0].text
-        except Exception as exc:
-            raise RuntimeError(f"Anthropic API call failed: {exc}") from exc
-
-    def parse_images(self, image_paths: list[Path]) -> str:
-        image_paths = [Path(p) for p in image_paths]
-
+    def send_prompt(self, model: str, prompt: str, media: list[Path]) -> str:
         content: list[dict] = []
-        for p in image_paths:
+        for p in media:
             raw, mt = _encode_image(p)
             content.append({
                 "type": "image",
@@ -77,15 +60,16 @@ class ClaudeParser(BaseParser):
                     "data": base64.standard_b64encode(raw).decode(),
                 },
             })
+        if not content:
+            content = [{"type": "text", "text": prompt}]
 
         try:
             message = self._client.messages.create(
-                model=self._model,
+                model=model,
                 max_tokens=8096,
-                system=self._system_prompt,
+                system=prompt,
                 messages=[{"role": "user", "content": content}],
             )
             return message.content[0].text
         except Exception as exc:
-            names = ", ".join(p.name for p in image_paths)
-            raise RuntimeError(f"Anthropic API call failed for [{names}]: {exc}") from exc
+            raise RuntimeError(f"Anthropic API call failed: {exc}") from exc

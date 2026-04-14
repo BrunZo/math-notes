@@ -8,8 +8,8 @@ import fitz  # pymupdf
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
-from config.paths import INBOX_DIR as _INBOX_DIR, OUTPUT_DIR as _OUTPUT_DIR
-from workflow.ingestion.parsing import MODELS_BY_PROVIDER, MODEL_REGISTRY
+from config.paths import INBOX_DIR as _INBOX_DIR, PENDING_DIR as _PENDING_DIR, TEX_DIR as _TEX_DIR
+from llm import MODELS_BY_PROVIDER, MODEL_REGISTRY
 from latex import compile as latex
 
 _SECRET_TOKEN = os.environ["SECRET_TOKEN"]
@@ -24,7 +24,8 @@ _FIDELITY_VALUES = {"conservative", "standard"}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _INBOX_DIR.mkdir(parents=True, exist_ok=True)
-    _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    _PENDING_DIR.mkdir(parents=True, exist_ok=True)
+    _TEX_DIR.mkdir(parents=True, exist_ok=True)
     yield
 
 
@@ -50,11 +51,16 @@ async def health():
 async def list_jobs():
     jobs: dict[str, str] = {}
 
-    if _OUTPUT_DIR.exists():
-        for f in sorted(_OUTPUT_DIR.rglob("*.tex")):
-            jobs[f.relative_to(_OUTPUT_DIR).with_suffix("").as_posix()] = "done"
-        for f in sorted(_OUTPUT_DIR.rglob("*.error")):
-            path = f.relative_to(_OUTPUT_DIR).with_suffix("").as_posix()
+    if _TEX_DIR.exists():
+        for f in sorted(_TEX_DIR.rglob("*.tex")):
+            jobs[f.relative_to(_TEX_DIR).with_suffix("").as_posix()] = "done"
+
+    if _PENDING_DIR.exists():
+        for f in sorted(_PENDING_DIR.rglob("*.tex")):
+            path = f.relative_to(_PENDING_DIR).with_suffix("").as_posix()
+            jobs.setdefault(path, "compiling")
+        for f in sorted(_PENDING_DIR.rglob("*.error")):
+            path = f.relative_to(_PENDING_DIR).with_suffix("").as_posix()
             jobs.setdefault(path, "error")
 
     if _INBOX_DIR.exists():
@@ -80,8 +86,6 @@ async def create_job(
     path: str = Form(...),
     model: str = Form(...),
     fidelity: str = Form("standard"),
-    debug_model: str = Form(...),
-    debug_iters: int = Form(3),
     files: Annotated[list[UploadFile], File(...)] = ...,
 ):
     if ".." in Path(path).parts or Path(path).is_absolute():
@@ -90,10 +94,6 @@ async def create_job(
         raise HTTPException(status_code=422, detail=f"Invalid fidelity: {fidelity}")
     if model not in MODEL_REGISTRY:
         raise HTTPException(status_code=422, detail=f"Unknown model: {model}")
-    if debug_model not in MODEL_REGISTRY:
-        raise HTTPException(status_code=422, detail=f"Unknown debug_model: {debug_model}")
-    if debug_iters < 0:
-        raise HTTPException(status_code=422, detail="debug_iters must be >= 0")
     for f in files:
         if f.content_type not in _ALLOWED_TYPES:
             raise HTTPException(status_code=415, detail=f"Unsupported type: {f.content_type}")
@@ -102,7 +102,7 @@ async def create_job(
     stem = job_path.name
     inbox_dir = _INBOX_DIR / job_path.parent
 
-    if (_OUTPUT_DIR / f"{path}.tex").exists():
+    if (_TEX_DIR / f"{path}.tex").exists():
         raise HTTPException(status_code=409, detail=f"Output already exists for {path}")
     if (inbox_dir / f"{stem}.job").exists():
         raise HTTPException(status_code=409, detail=f"Job already pending for {path}")
@@ -131,7 +131,6 @@ async def create_job(
     (inbox_dir / f"{stem}.job").write_text(
         json.dumps({
             "model": model, "fidelity": fidelity, "images": sorted(saved),
-            "debug_model": debug_model, "debug_iters": debug_iters,
         }),
         encoding="utf-8",
     )
@@ -149,14 +148,14 @@ async def get_job_output(path: str):
     if suffix not in {".tex", ".pdf"}:
         raise HTTPException(status_code=400, detail="Path must end in .tex or .pdf")
 
-    tex_path = _OUTPUT_DIR / parent / f"{stem}.tex"
+    tex_path = _TEX_DIR / parent / f"{stem}.tex"
 
     if suffix == ".tex":
         if tex_path.exists():
             return Response(content=tex_path.read_text(encoding="utf-8"), media_type="text/plain")
     elif suffix == ".pdf":
         if stem == "master":
-            result = latex.compile_master(_OUTPUT_DIR / parent)
+            result = latex.compile_master(_TEX_DIR / parent)
         elif tex_path.exists():
             result = latex.compile_single(tex_path)
         else:
@@ -167,7 +166,7 @@ async def get_job_output(path: str):
             if result.pdf_bytes is not None:
                 return Response(content=result.pdf_bytes, media_type="application/pdf")
 
-    error_path = _OUTPUT_DIR / parent / f"{stem}.error"
+    error_path = _PENDING_DIR / parent / f"{stem}.error"
     if error_path.exists():
         raise HTTPException(status_code=500, detail=error_path.read_text(encoding="utf-8"))
 

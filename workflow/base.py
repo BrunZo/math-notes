@@ -17,15 +17,6 @@ def setup_logging(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
-def glob_finder(directory: Path, pattern: str) -> Callable[[], Path | None]:
-    """Return a job-finder that yields the first file matching *pattern* in *directory*."""
-    def find() -> Path | None:
-        if not directory.exists():
-            return None
-        return next((f for f in sorted(directory.rglob(pattern))), None)
-    return find
-
-
 @dataclass
 class Worker:
     name: str
