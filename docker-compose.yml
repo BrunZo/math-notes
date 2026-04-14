@@ -23,6 +23,8 @@ services:
     env_file: .env
     environment:
       TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
+      DEBUG_MODEL: ${DEBUG_MODEL:-}
+      DEBUG_ITERS: ${DEBUG_ITERS:-3}
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
     depends_on:
@@ -30,7 +32,7 @@ services:
 
   extractor:
     build: .
-    command: python -m workflow.extractor
+    command: python -m workflow.repr.extractor
     env_file: .env
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
