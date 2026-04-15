@@ -52,8 +52,12 @@ async def list_jobs():
     jobs: dict[str, str] = {}
 
     if _TEX_DIR.exists():
+        courses: set[str] = set()
         for f in sorted(_TEX_DIR.rglob("*.tex")):
             jobs[f.relative_to(_TEX_DIR).with_suffix("").as_posix()] = "done"
+            courses.add(f.relative_to(_TEX_DIR).parts[0])
+        for course in sorted(courses):
+            jobs[f"{course}/master"] = "done"
 
     if _PENDING_DIR.exists():
         for f in sorted(_PENDING_DIR.rglob("*.tex")):

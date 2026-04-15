@@ -17,6 +17,11 @@ _LATEX_SPECIAL = str.maketrans({
 })
 
 
+def _course_title(name: str) -> str:
+    """Turn a directory name like 'geometry' or 'linear_algebra' into a title."""
+    return name.replace("_", " ").replace("-", " ").title().translate(_LATEX_SPECIAL)
+
+
 @dataclass
 class CompileResult:
     success: bool
@@ -45,7 +50,7 @@ def compile_single(tex_path: Path) -> CompileResult:
     """Compile a body-only .tex file by inlining it into a master document."""
     body = tex_path.read_text(encoding="utf-8")
     master_src = _jinja_env.get_template("master.tex.j2").render(
-        course_name=tex_path.parent.name.translate(_LATEX_SPECIAL),
+        course_name=_course_title(tex_path.parent.name),
         body=body,
     )
     result = _run_tectonic(master_src)
@@ -63,7 +68,7 @@ def compile_master(out_dir: Path) -> CompileResult:
         return CompileResult(success=False, stderr=f"No .tex files found in {out_dir}")
 
     master_src = _jinja_env.get_template("master.tex.j2").render(
-        course_name=out_dir.name.translate(_LATEX_SPECIAL),
+        course_name=_course_title(out_dir.name),
         tex_paths=[f.name for f in tex_files],
     )
     # compile_master uses \input, so copy the files into the temp dir
