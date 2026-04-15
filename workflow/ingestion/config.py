@@ -54,6 +54,8 @@ FIGURES
   - Reproduce diagrams as TikZ inside \\begin{figure}[H] with \\caption.
   - Available tikz libraries: arrows.meta, calc, cd, decorations.markings, \
 decorations.pathreplacing, babel.
+  - The source images are black-and-white, but you SHOULD add color to \
+diagrams (nodes, edges, fills) using xcolor x11names to improve readability.
 
 OUTPUT FORMAT
   Return only the LaTeX body. First token of output must be \\chapter.
