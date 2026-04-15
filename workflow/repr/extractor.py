@@ -2,7 +2,6 @@
 import hashlib
 import re
 from pathlib import Path
-from typing import Callable
 
 from pylatexenc.latexwalker import (
     LatexWalker,
@@ -11,7 +10,7 @@ from pylatexenc.latexwalker import (
     LatexMacroNode,
 )
 
-from config.paths import DB_PATH, OUTPUT_DIR
+from config.paths import DB_PATH, TEX_DIR
 from models.helpers import (
     FileParseResult,
     ObjectInfo,
@@ -21,6 +20,7 @@ from models.helpers import (
 )
 from models.schema import init_db
 from workflow.base import Worker, setup_logging
+from workflow.utils import stale_tex_finder
 
 log = setup_logging("extractor")
 
@@ -253,33 +253,7 @@ def parse_tex_ast(tex_path: Path) -> FileParseResult:
     return result
 
 
-def stale_tex_finder(output_dir: Path) -> Callable[[], Path | None]:
-    """Return a job-finder that yields the first .tex whose IR entry is missing or stale."""
-    def find() -> Path | None:
-        if not output_dir.exists():
-            return None
-        conn = init_db(DB_PATH)
-        try:
-            for tex_path in sorted(output_dir.rglob("*.tex")):
-                rel = tex_path.relative_to(output_dir).as_posix()
-                row = conn.execute(
-                    "SELECT last_built_at FROM files WHERE path = ?", (rel,)
-                ).fetchone()
-                if row is None:
-                    return tex_path
-                # Compare file mtime against last_built_at
-                from datetime import datetime, timezone
-                built = datetime.fromisoformat(row[0].replace("Z", "+00:00"))
-                mtime = datetime.fromtimestamp(tex_path.stat().st_mtime, tz=timezone.utc)
-                if mtime > built:
-                    return tex_path
-        finally:
-            conn.close()
-        return None
-    return find
-
-
-def make_process(output_dir: Path) -> Callable[[Path], None]:
+def make_process(output_dir: Path):
     def process(tex_path: Path) -> None:
         rel = tex_path.relative_to(output_dir).as_posix()
 
@@ -308,8 +282,8 @@ def make_process(output_dir: Path) -> Callable[[Path], None]:
 def main() -> None:
     Worker(
         name="extractor",
-        find_job=stale_tex_finder(OUTPUT_DIR),
-        process=make_process(OUTPUT_DIR),
+        find_job=lambda: stale_tex_finder(TEX_DIR),
+        process=make_process(TEX_DIR),
     ).run()
 
 

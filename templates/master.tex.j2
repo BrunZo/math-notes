@@ -79,9 +79,13 @@ bookmarksopenlevel=0]{hyperref}
 
 \mainmatter
 
+{% if body %}
+{{ body }}
+{% else %}
 {% for tex_path in tex_paths %}
 \input{ {{- tex_path -}} }
 {% endfor %}
+{% endif %}
 
 
 \backmatter
