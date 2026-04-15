@@ -39,6 +39,7 @@ def parser_process(inbox_dir: Path, pending_dir: Path) -> Callable[[Path], None]
         out_dir = pending_dir / subdir
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        processed_paths: list[Path] = []
         try:
             processed_paths = preprocess_all(image_paths)
             body = transcribe_images(
@@ -61,9 +62,18 @@ def parser_process(inbox_dir: Path, pending_dir: Path) -> Callable[[Path], None]
             out_error.write_text(str(exc), encoding="utf-8")
             log.error("failed %s: %s", stem, exc)
 
-        for img in image_paths:
+        for img in set(processed_paths + image_paths):
             img.unlink(missing_ok=True)
         job_path.unlink(missing_ok=True)
+
+        # Remove empty subdirectories up to inbox root
+        d = input_dir
+        while d != inbox_dir:
+            try:
+                d.rmdir()  # only succeeds if empty
+            except OSError:
+                break
+            d = d.parent
 
     return process
 

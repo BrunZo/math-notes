@@ -21,10 +21,6 @@ services:
     build: .
     command: python -m workflow.testing.debugger
     env_file: .env
-    environment:
-      TECTONIC_CACHE_DIR: /srv/notes/.tectonic-cache
-      DEBUG_MODEL: ${DEBUG_MODEL:-}
-      DEBUG_ITERS: ${DEBUG_ITERS:-3}
     volumes:
       - ${NOTES_DIR:-/srv/notes}:/srv/notes
     depends_on:

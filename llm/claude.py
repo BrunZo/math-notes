@@ -3,14 +3,26 @@ import os
 from pathlib import Path
 
 import anthropic
+import cv2
 import fitz
 
 from .base import BaseAIClient, media_type
 
-# Anthropic enforces a 5 MB limit on the base64-encoded image string.
-# Base64 expands raw bytes by 4/3, so the raw file must stay under 3.75 MB.
 _API_ENCODED_LIMIT = 5 * 1024 * 1024
-_RAW_LIMIT = _API_ENCODED_LIMIT * 3 // 4  # ~3.93 MB
+_RAW_LIMIT = _API_ENCODED_LIMIT * 3 // 4
+_MAX_DIMENSION = 1999
+
+
+def _cap_dimensions(path: Path) -> Path:
+    """Downscale so neither side exceeds _MAX_DIMENSION. Overwrites in place."""
+    img = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    h, w = img.shape[:2]
+    scale = _MAX_DIMENSION / max(h, w)
+    if scale >= 1:
+        return path
+    img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    cv2.imwrite(str(path), img)
+    return path
 
 
 def _encode_image(path: Path) -> tuple[bytes, str]:
@@ -19,7 +31,6 @@ def _encode_image(path: Path) -> tuple[bytes, str]:
     if len(raw) <= _RAW_LIMIT:
         return raw, media_type(path)
 
-    # Image is too large — re-encode as JPEG at progressively lower quality.
     doc = fitz.open(str(path))
     pix = doc[0].get_pixmap()
     if pix.n not in (1, 3):
@@ -30,7 +41,6 @@ def _encode_image(path: Path) -> tuple[bytes, str]:
         if len(compressed) <= _RAW_LIMIT:
             return compressed, "image/jpeg"
 
-    # Still too large — scale down the pixmap and try once more.
     scale = (_RAW_LIMIT / len(raw)) ** 0.5
     pix = doc[0].get_pixmap(matrix=fitz.Matrix(scale, scale))
     if pix.n not in (1, 3):
@@ -51,6 +61,7 @@ class ClaudeClient(BaseAIClient):
     def send_prompt(self, model: str, prompt: str, media: list[Path]) -> str:
         content: list[dict] = []
         for p in media:
+            p = _cap_dimensions(p)
             raw, mt = _encode_image(p)
             content.append({
                 "type": "image",
@@ -63,13 +74,10 @@ class ClaudeClient(BaseAIClient):
         if not content:
             content = [{"type": "text", "text": prompt}]
 
-        try:
-            message = self._client.messages.create(
-                model=model,
-                max_tokens=8096,
-                system=prompt,
-                messages=[{"role": "user", "content": content}],
-            )
-            return message.content[0].text
-        except Exception as exc:
-            raise RuntimeError(f"Anthropic API call failed: {exc}") from exc
+        message = self._client.messages.create(
+            model=model,
+            max_tokens=16384,
+            system=prompt,
+            messages=[{"role": "user", "content": content}],
+        )
+        return message.content[0].text

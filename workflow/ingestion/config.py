@@ -22,6 +22,8 @@ STRUCTURE RULES
   - Do NOT emit \\part, \\setcounter, \\newtheorem, \\usepackage,
     \\begin{document}, or any preamble content.
   - Do NOT wrap output in markdown fences.
+  - Disregard numeration of chapters, sections or theorems from the book
+    and instead create new chapters, sections, etc. when topic seems to change.
 """.strip()
 
 _PARSE_SYSTEM_PREAMBLE = """

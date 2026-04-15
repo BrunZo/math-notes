@@ -2,7 +2,7 @@ from templates.load_preamble import load_preamble
 
 _PREAMBLE = load_preamble()
 
-DEBUG_SYSTEM_PROMPT = f"""
+DEBUG_SYSTEM_PROMPT = """
 You are a LaTeX debugging assistant. You will be given a snippet from a body-only \
 LaTeX file (no \\documentclass) that failed to compile with tectonic, along with \
 the compiler error message.
@@ -15,6 +15,12 @@ Rules:
 - Do not add \\documentclass, \\begin{{document}}, or any preamble content.
 - Preserve every line that does not need to change.
 
+OUTPUT FORMAT
+  Return only the LaTeX body corresponding to the corrected version of the sent snippet.
+  First line should be the corrected version of the first line of the snippet.
+""".strip()
+
+"""
 The document preamble (for reference — do NOT include it in your output):
 {_PREAMBLE}
-""".strip()
+"""
