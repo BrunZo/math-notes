@@ -10,11 +10,11 @@ import re
 import sys
 from pathlib import Path
 
-from config.paths import DB_PATH, OUTPUT_DIR
+from config.paths import DB_PATH, TEX_DIR
 from models.helpers import build_outline as _db_build_outline, collect_sections as _db_collect_sections
 from models.schema import init_db
-from workflow.ingestion.parsing import MODEL_REGISTRY
-from workflow.ingestion.parsing.base import LATEX_CONSTRAINTS
+from llm import MODEL_REGISTRY
+from workflow.ingestion.config import LATEX_CONSTRAINTS
 
 _RE_SECTION = re.compile(r'^\s*\\(chapter|section|subsection)\{([^}]*)\}')
 
@@ -28,7 +28,7 @@ def collect_sections() -> list[dict]:
         conn.close()
     candidates = []
     for row in rows:
-        tex_path = OUTPUT_DIR / row["file"]
+        tex_path = TEX_DIR / row["file"]
         if not tex_path.exists():
             continue
         candidates.append({
@@ -135,9 +135,10 @@ def main() -> None:
 
     print(f"Expanding \"{chosen['title']}\" ({len(block)} lines) with {args.model}…")
 
-    client = MODEL_REGISTRY[args.model](model=args.model, fidelity="standard")
-    expanded = client.complete_text(build_system_prompt(),
-                                    "\n".join(block))
+    client = MODEL_REGISTRY[args.model]()
+    expanded = client.send_prompt(args.model,
+                                  build_system_prompt() + "\n\n" + "\n".join(block),
+                                  [])
 
     new_lines = all_lines[:start] + expanded.splitlines() + all_lines[end:]
     chosen["tex_path"].write_text("\n".join(new_lines), encoding="utf-8")

@@ -1,7 +1,3 @@
-import hashlib
-from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Literal
 
 LATEX_CONSTRAINTS = """
@@ -26,40 +22,20 @@ STRUCTURE RULES
   - Do NOT emit \\part, \\setcounter, \\newtheorem, \\usepackage,
     \\begin{document}, or any preamble content.
   - Do NOT wrap output in markdown fences.
+  - Disregard numeration of chapters, sections or theorems from the book
+    and instead create new chapters, sections, etc. when topic seems to change.
 """.strip()
 
-SYSTEM_BASE = """
+_PARSE_SYSTEM_PREAMBLE = """
 You are a mathematical typesetter converting handwritten university lecture \
 notes in Spanish into publication-quality LaTeX.
 
-The output will be \\input{{}} into a master document using the amsbook class. \
+The output will be \\input{} into a master document using the amsbook class. \
 The preamble is fixed and provides the following:
 
-AVAILABLE ENVIRONMENTS
-  Numbered (share counter, reset per \\part):
-    theorem, proposition, lemma, corollary, conjecture, definition, example, exercise
-  Unnumbered:
-    theorem*, conjecture*, remark
-  Other:
-    proof     (from amsthm, label is "Demostración")
-  Please, add a \\label for theorem, proposition, lemma, corollary, conjecture, \
-  definition, example or exercise if relevant.
+"""
 
-AVAILABLE COMMANDS
-  Number sets : \\N  \\Z  \\Q  \\R  \\C  \\bbk (blackboard-bold k, i.e. \\Bbbk)
-  Other math  : \\eps (\\varepsilon), \\abs{{#1}} (|·|),
-                \\1 (bold 1), \\Re (Re), \\calD (𝒟),
-                \\li, \\mcd, \\sqfree (operator names)
-  Do NOT define new commands. Do NOT use \\norm — use \\lVert·\\rVert directly \
-  or \\abs for absolute values.
-
-STRUCTURE RULES
-  - Use \\section and \\subsection (not starred) for internal structure \
-so the TOC is populated.
-  - Do NOT emit \\part, \\setcounter, \\newtheorem, \\usepackage, \
-\\begin{{document}}, or any preamble content.
-  - Do NOT wrap output in markdown fences.
-
+_PARSE_SYSTEM_TAIL = """
 SPANISH PUNCTUATION
   - Inverted question mark : ?` (babel shorthand for ¿)
   - Inverted exclamation   : !` (babel shorthand for ¡)
@@ -68,26 +44,25 @@ SPANISH PUNCTUATION
 MATH NOTATION
   - Displayed equations: \\[ ... \\] or align/align* as appropriate.
   - Inline: $ ... $
-  - Use \\mathrsfs for script letters if needed (\\mathscr{{F}}, etc.)
+  - Use \\mathrsfs for script letters if needed (\\mathscr{F}, etc.)
   - The equation counter resets per \\part, not per chapter — do not \
 reference equation numbers manually.
   - \\allowdisplaybreaks is active; long align blocks are fine.
   - You MAY add references to other theorems, definitions using \\label and \\ref
 
 FIGURES
-  - Reproduce diagrams as TikZ inside \\begin{{figure}}[H] with \\caption.
+  - Reproduce diagrams as TikZ inside \\begin{figure}[H] with \\caption.
   - Available tikz libraries: arrows.meta, calc, cd, decorations.markings, \
 decorations.pathreplacing, babel.
-
-{fidelity_instructions}
+  - The source images are black-and-white, but you SHOULD add color to \
+diagrams (nodes, edges, fills) using xcolor x11names to improve readability.
 
 OUTPUT FORMAT
   Return only the LaTeX body. First token of output must be \\chapter.
 """
 
-FIDELITY_BLOCKS = {}
-
-FIDELITY_BLOCKS["conservative"] = """
+FIDELITY_BLOCKS = {
+    "conservative": """
 TRANSCRIPTION MODE: CONSERVATIVE
 
 Your job is intelligent transcription. Preserve all mathematical content \
@@ -108,9 +83,8 @@ exactly, but write prose at textbook quality.
 - Do NOT invent mathematical content: no new lemmas, no added hypotheses, \
   no examples not sketched in the source.
 - Mark illegible passages with \\textbf{[ilegible]}.
-"""
-
-FIDELITY_BLOCKS["standard"] = """
+""",
+    "standard": """
 TRANSCRIPTION MODE: STANDARD
 
 The image contains rough notes or a sketch — treat it as an outline and \
@@ -142,44 +116,15 @@ WHAT YOU MUST NOT DO
 - Change the statement of any result visible in the image (unless the statement is wrong).
 - Add content from a different mathematical area than what the notes cover.
 - Use a register that is too informal or too advanced for the course level.
-"""
+""",
+}
 
 
-def build_prompt(degree: Literal["conservative", "standard", "liberal"]) -> str:
-    return SYSTEM_BASE.format(
-        fidelity_instructions=FIDELITY_BLOCKS[degree],
+def build_prompt(degree: Literal["conservative", "standard"]) -> str:
+    return (
+        _PARSE_SYSTEM_PREAMBLE
+        + LATEX_CONSTRAINTS
+        + "\n"
+        + FIDELITY_BLOCKS[degree]
+        + _PARSE_SYSTEM_TAIL
     )
-
-
-class BaseAIClient(ABC):
-    @abstractmethod
-    def complete_text(self, system_prompt: str, user_text: str) -> str:
-        """Send a text-only message and return the model's response."""
-        ...
-
-
-class BaseParser(BaseAIClient):
-    @abstractmethod
-    def parse_images(self, image_paths: list[Path]) -> str:
-        """Call the model with one or more images and return a single LaTeX body."""
-        ...
-
-
-def provenance_header(source_paths: list[Path], model: str) -> str:
-    """Return a LaTeX comment block with source file provenance."""
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    lines = []
-    for p in source_paths:
-        sha = hashlib.sha256(p.read_bytes()).hexdigest()[:16]
-        lines.append(f"% source: {p.name}, sha256:{sha}, extracted: {now}, model: {model}")
-    return "\n".join(lines)
-
-
-def media_type(path: Path) -> str:
-    suffix = path.suffix.lower()
-    return {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".webp": "image/webp",
-    }.get(suffix, "image/jpeg")
