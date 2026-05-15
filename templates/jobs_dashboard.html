@@ -107,9 +107,12 @@
   </div>
 
   <script>
+    function headers() { return { 'Authorization': 'Bearer ' + document.getElementById('token').value.trim() }; }
+
     async function loadModels() {
       try {
-        const r = await fetch('/models');
+        const r = await fetch('/models', { headers: headers() });
+        if (!r.ok) return;
         const byProvider = await r.json();
         const allModels = Object.values(byProvider).flat();
         document.getElementById('model').innerHTML = allModels.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -117,8 +120,6 @@
         console.error('Failed to load models:', e);
       }
     }
-
-    function headers() { return { 'Authorization': 'Bearer ' + document.getElementById('token').value.trim() }; }
 
     async function submitJob() {
       const status = document.getElementById('submit-status');
@@ -133,7 +134,7 @@
 
       status.innerHTML = 'Submitting…';
       try {
-        const r = await fetch('/job', { method: 'POST', headers: headers(), body: fd });
+        const r = await fetch('/jobs', { method: 'POST', headers: headers(), body: fd });
         const data = await r.json();
         if (r.ok) {
           const n = data.files.length;
@@ -149,8 +150,17 @@
 
     async function loadJobs() {
       const el = document.getElementById('jobs-list');
+      const token = document.getElementById('token').value.trim();
+      if (!token) {
+        el.innerHTML = '<em style="color:#999;font-size:.85rem">Enter token to view jobs.</em>';
+        return;
+      }
       try {
-        const r = await fetch('/jobs');
+        const r = await fetch('/jobs', { headers: headers() });
+        if (r.status === 401) {
+          el.innerHTML = '<em style="color:#999;font-size:.85rem">Invalid token.</em>';
+          return;
+        }
         const jobs = await r.json();
         if (!jobs.length) { el.innerHTML = '<em style="color:#999;font-size:.85rem">No jobs yet.</em>'; return; }
 
@@ -164,24 +174,12 @@
 
         let html = '<table><thead><tr><th>Path</th><th>Status</th><th></th></tr></thead><tbody>';
         for (const [dir, entries] of Object.entries(groups)) {
-          const doneCount = entries.filter(j => j.status === 'done').length;
-          if (dir && doneCount > 1) {
-            html += `<tr style="background:#f9f9f9">
-              <td><code>${dir}/</code></td>
-              <td><span class="badge badge-done">${doneCount} done</span></td>
-              <td style="white-space:nowrap">
-                <button class="secondary" onclick="viewPdf('${dir}/master')">view pdf</button>
-                <button class="secondary" onclick="getOutput('${dir}/master','pdf')">↓</button>
-              </td>
-            </tr>`;
-          }
           for (const j of entries) {
-            const isMaster = j.id.endsWith('/master');
             html += `<tr>
               <td><code>${j.id}</code></td>
               <td><span class="badge badge-${j.status}">${j.status}</span></td>
               <td style="white-space:nowrap">
-                ${j.status === 'done' && !isMaster ? `
+                ${j.status === 'done' ? `
                   <button class="secondary" onclick="getOutput('${j.id}','tex')">↓ tex</button>
                   <button class="secondary" onclick="viewPdf('${j.id}')">view pdf</button>
                   <button class="secondary" onclick="getOutput('${j.id}','pdf')">↓</button>
@@ -201,7 +199,7 @@
       const status = document.getElementById('get-status');
       status.innerHTML = 'Fetching…';
       try {
-        const r = await fetch(`/job/${path}.${fmt}`);
+        const r = await fetch(`/notes/${path}.${fmt}`, { headers: headers() });
         if (r.ok) {
           const blob = await r.blob();
           const url = URL.createObjectURL(blob);
@@ -222,7 +220,7 @@
       const status = document.getElementById('get-status');
       status.innerHTML = 'Loading PDF…';
       try {
-        const r = await fetch(`/job/${path}.pdf`);
+        const r = await fetch(`/notes/${path}.pdf`, { headers: headers() });
         if (r.ok) {
           const blob = await r.blob();
           const url = URL.createObjectURL(blob);
@@ -247,7 +245,7 @@
       if (old.startsWith('blob:')) URL.revokeObjectURL(old);
     }
 
-    loadModels();
+    document.getElementById('token').addEventListener('change', () => { loadModels(); loadJobs(); });
     loadJobs();
   </script>
 </body>
