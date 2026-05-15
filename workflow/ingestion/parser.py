@@ -1,4 +1,4 @@
-"""Parser worker: transcribes images to LaTeX via AI and writes to PENDING_DIR."""
+"""Parser worker: transcribes images and/or text inputs to LaTeX via AI."""
 
 import hashlib
 import json
@@ -10,6 +10,7 @@ from config.paths import INBOX_DIR, PENDING_DIR
 from llm import OpenRouterClient, list_models
 from workflow.base import Worker, setup_logging
 from workflow.ingestion.config import build_prompt
+from workflow.ingestion.extractors import IMAGE_SUFFIXES, TEXT_SUFFIXES, extract_text
 from workflow.ingestion.preprocessing import preprocess_all
 from workflow.utils import glob_finder
 
@@ -30,29 +31,37 @@ def parser_process(inbox_dir: Path, pending_dir: Path) -> Callable[[Path], None]
         input_dir = job_path.parent
 
         config = json.loads(job_path.read_text(encoding="utf-8"))
-        image_names: list[str] = config.get("images", [])
-        image_paths = [input_dir / name for name in image_names]
+        file_names: list[str] = config.get("files", [])
+        file_paths = [input_dir / name for name in file_names]
         model = config.get("model")
         fidelity = config.get("fidelity", "standard")
+
+        image_paths = [p for p in file_paths if p.suffix.lower() in IMAGE_SUFFIXES]
+        text_paths = [p for p in file_paths if p.suffix.lower() in TEXT_SUFFIXES]
 
         subdir = job_path.relative_to(inbox_dir).parent
         out_dir = pending_dir / subdir
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        processed_paths: list[Path] = []
+        processed_images: list[Path] = []
         try:
-            processed_paths = preprocess_all(image_paths)
-            body = transcribe_images(
-                [str(p) for p in processed_paths], model=model, fidelity=fidelity
+            processed_images = preprocess_all(image_paths)
+            texts = [extract_text(p) for p in text_paths]
+            body = transcribe(
+                images=processed_images,
+                texts=texts,
+                model=model,
+                fidelity=fidelity,
             )
-            header = provenance_header(image_paths, model)
+            header = provenance_header(file_paths, model)
 
             out_tex = (out_dir / stem).with_suffix(".tex")
             out_tex.write_text(f"{header}\n{body}", encoding="utf-8")
             log.info(
-                "done: %s (%d pages) → %s (model=%s, fidelity=%s)",
+                "done: %s (%d images, %d texts) → %s (model=%s, fidelity=%s)",
                 stem,
                 len(image_paths),
+                len(text_paths),
                 out_tex.relative_to(pending_dir),
                 model,
                 fidelity,
@@ -62,15 +71,14 @@ def parser_process(inbox_dir: Path, pending_dir: Path) -> Callable[[Path], None]
             out_error.write_text(str(exc), encoding="utf-8")
             log.error("failed %s: %s", stem, exc)
 
-        for img in set(processed_paths + image_paths):
-            img.unlink(missing_ok=True)
+        for p in set(processed_images + file_paths):
+            p.unlink(missing_ok=True)
         job_path.unlink(missing_ok=True)
 
-        # Remove empty subdirectories up to inbox root
         d = input_dir
         while d != inbox_dir:
             try:
-                d.rmdir()  # only succeeds if empty
+                d.rmdir()
             except OSError:
                 break
             d = d.parent
@@ -78,13 +86,13 @@ def parser_process(inbox_dir: Path, pending_dir: Path) -> Callable[[Path], None]
     return process
 
 
-def transcribe_images(
-    image_paths: list[str], model: str, fidelity: str = "standard"
+def transcribe(
+    images: list[Path], texts: list[str], model: str, fidelity: str = "standard"
 ) -> str:
     if model not in list_models():
         raise ValueError(f"Unknown model '{model}'. Available: {list_models()}")
     return OpenRouterClient().send_prompt(
-        model, build_prompt(fidelity), [Path(p) for p in image_paths]
+        model, build_prompt(fidelity), media=images, texts=texts
     )
 
 

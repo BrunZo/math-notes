@@ -4,5 +4,6 @@ openrouter
 jinja2
 python-multipart
 pymupdf
+python-docx
 pylatexenc
 opencv-python-headless

@@ -33,8 +33,16 @@ class OpenRouterClient:
     def __init__(self):
         self._client = _client()
 
-    def send_prompt(self, model: str, prompt: str, media: list[Path]) -> str:
+    def send_prompt(
+        self,
+        model: str,
+        prompt: str,
+        media: list[Path] = (),
+        texts: list[str] = (),
+    ) -> str:
         content: list[dict] = []
+        for t in texts:
+            content.append({"type": "text", "text": t})
         for p in media:
             b64 = base64.b64encode(p.read_bytes()).decode()
             url = f"data:{_media_type(p)};base64,{b64}"

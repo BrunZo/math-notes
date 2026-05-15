@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 
-from app.helpers.jobs_helpers import ALLOWED_TYPES, FIDELITY_VALUES
+from app.helpers.jobs_helpers import ALLOWED_SUFFIXES, FIDELITY_VALUES
 from app.services import jobs_services
 from config.paths import INBOX_DIR, TEX_DIR
 from llm import list_models
@@ -41,9 +41,10 @@ async def create_job(
     if model not in list_models():
         raise HTTPException(status_code=422, detail=f"Unknown model: {model}")
     for f in files:
-        if f.content_type not in ALLOWED_TYPES:
+        suffix = Path(f.filename or "").suffix.lower()
+        if suffix not in ALLOWED_SUFFIXES:
             raise HTTPException(
-                status_code=415, detail=f"Unsupported type: {f.content_type}"
+                status_code=415, detail=f"Unsupported file: {f.filename}"
             )
     if (TEX_DIR / f"{path}.tex").exists():
         raise HTTPException(status_code=409, detail=f"Output already exists for {path}")
