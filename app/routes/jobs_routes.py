@@ -17,7 +17,7 @@ async def dashboard():
     return HTMLResponse(jobs_services.serve_dashboard())
 
 
-@jobs_router.get("/")
+@jobs_router.get("")
 async def list_jobs():
     return jobs_services.list_jobs()
 
@@ -27,7 +27,7 @@ async def models():
     return list_models()
 
 
-@jobs_router.post("/")
+@jobs_router.post("")
 async def create_job(
     path: str = Form(...),
     model: str = Form(...),
