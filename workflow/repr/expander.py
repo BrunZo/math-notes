@@ -13,7 +13,7 @@ from pathlib import Path
 from config.paths import DB_PATH, TEX_DIR
 from models.helpers import build_outline as _db_build_outline, collect_sections as _db_collect_sections
 from models.schema import init_db
-from llm import MODEL_REGISTRY
+from llm import OpenRouterClient, list_models
 from workflow.ingestion.config import LATEX_CONSTRAINTS
 
 _RE_SECTION = re.compile(r'^\s*\\(chapter|section|subsection)\{([^}]*)\}')
@@ -96,11 +96,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Expand a LaTeX section using an LLM.")
     parser.add_argument("query", help="Section title to search for (fuzzy)")
     parser.add_argument("--model", "-m", required=True,
-                        help=f"Model ID. Available: {', '.join(MODEL_REGISTRY)}")
+                        help="OpenRouter model ID (e.g. anthropic/claude-3.5-sonnet)")
     args = parser.parse_args()
 
-    if args.model not in MODEL_REGISTRY:
-        print(f"Unknown model '{args.model}'. Available: {', '.join(MODEL_REGISTRY)}",
+    available = list_models()
+    if args.model not in available:
+        print(f"Unknown model '{args.model}'. Available: {', '.join(available)}",
               file=sys.stderr)
         sys.exit(1)
 
@@ -135,7 +136,7 @@ def main() -> None:
 
     print(f"Expanding \"{chosen['title']}\" ({len(block)} lines) with {args.model}…")
 
-    client = MODEL_REGISTRY[args.model]()
+    client = OpenRouterClient()
     expanded = client.send_prompt(args.model,
                                   build_system_prompt() + "\n\n" + "\n".join(block),
                                   [])

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Callable
 
 from config.paths import INBOX_DIR, PENDING_DIR
-from llm import MODEL_REGISTRY
+from llm import OpenRouterClient, list_models
 from workflow.base import Worker, setup_logging
 from workflow.ingestion.config import build_prompt
 from workflow.ingestion.preprocessing import preprocess_all
@@ -81,10 +81,9 @@ def parser_process(inbox_dir: Path, pending_dir: Path) -> Callable[[Path], None]
 def transcribe_images(
     image_paths: list[str], model: str, fidelity: str = "standard"
 ) -> str:
-    cls = MODEL_REGISTRY.get(model)
-    if cls is None:
-        raise ValueError(f"Unknown model '{model}'. Available: {list(MODEL_REGISTRY)}")
-    return cls().send_prompt(
+    if model not in list_models():
+        raise ValueError(f"Unknown model '{model}'. Available: {list_models()}")
+    return OpenRouterClient().send_prompt(
         model, build_prompt(fidelity), [Path(p) for p in image_paths]
     )
 

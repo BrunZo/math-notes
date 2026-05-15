@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from app.helpers.jobs_helpers import ALLOWED_TYPES, FIDELITY_VALUES
 from app.services import jobs_services
 from config.paths import INBOX_DIR, TEX_DIR
-from llm import MODEL_REGISTRY
+from llm import list_models
 
 jobs_router = APIRouter(prefix="/jobs")
 
@@ -22,6 +22,11 @@ async def list_jobs():
     return jobs_services.list_jobs()
 
 
+@jobs_router.get("/models")
+async def models():
+    return list_models()
+
+
 @jobs_router.post("/")
 async def create_job(
     path: str = Form(...),
@@ -33,7 +38,7 @@ async def create_job(
         raise HTTPException(status_code=422, detail="Invalid path")
     if fidelity not in FIDELITY_VALUES:
         raise HTTPException(status_code=422, detail=f"Invalid fidelity: {fidelity}")
-    if model not in MODEL_REGISTRY:
+    if model not in list_models():
         raise HTTPException(status_code=422, detail=f"Unknown model: {model}")
     for f in files:
         if f.content_type not in ALLOWED_TYPES:

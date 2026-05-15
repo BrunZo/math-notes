@@ -111,11 +111,10 @@
 
     async function loadModels() {
       try {
-        const r = await fetch('/models', { headers: headers() });
+        const r = await fetch('/jobs/models', { headers: headers() });
         if (!r.ok) return;
-        const byProvider = await r.json();
-        const allModels = Object.values(byProvider).flat();
-        document.getElementById('model').innerHTML = allModels.map(m => `<option value="${m}">${m}</option>`).join('');
+        const models = await r.json();
+        document.getElementById('model').innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
       } catch (e) {
         console.error('Failed to load models:', e);
       }

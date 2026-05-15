@@ -10,7 +10,7 @@ A self-contained web service that accepts images (or PDFs) of handwritten univer
 
 ```bash
 git clone ... && cd math-notes-viz
-cp .env.example .env   # fill in SECRET_TOKEN, ANTHROPIC_API_KEY, and/or GOOGLE_API_KEY
+cp .env.example .env   # fill in SECRET_TOKEN and OPENROUTER_API_KEY
 ```
 
 ## Running

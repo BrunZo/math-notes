@@ -63,11 +63,8 @@ workflow/repr/extractor.py  (poll loop)
 - `repr/extractor.py` — metadata extraction worker (polls TEX_DIR for stale `.tex` files).
 - `repr/expander.py` — CLI tool for expanding sections with AI.
 
-**`llm/`** — AI client abstraction.
-- `base.py` — `BaseAIClient` ABC.
-- `claude.py` — Anthropic API client. Uses `ANTHROPIC_API_KEY`.
-- `gemini.py` — Google Gemini client. Uses `GOOGLE_API_KEY`.
-- `__init__.py` — `MODEL_REGISTRY` (flat `model_id → class`) and `MODELS_BY_PROVIDER`.
+**`llm/`** — AI client (single provider via OpenRouter).
+- `openrouter.py` — `OpenRouterClient.send_prompt(model, prompt, media)` and `list_models()` (multimodal-only, fetched once per process from OpenRouter's `/models`). Uses `OPENROUTER_API_KEY`.
 
 **`latex/`** — tectonic compilation (pure library, no worker logic).
 - `compile.py` — `compile_single(tex_path)`, `compile_master(out_dir)`. Shells out to tectonic, returns PDF bytes.
@@ -80,7 +77,7 @@ A `.job` file is JSON placed in `INBOX_DIR` by the API:
 
 ```json
 {
-  "model": "claude-opus-4-6",
+  "model": "anthropic/claude-3.5-sonnet",
   "fidelity": "standard",
   "images": ["01_01.png", "01_02.png"]
 }
@@ -93,14 +90,13 @@ Images are listed relative to the job file's directory.
 | Variable | Required | Description |
 |---|---|---|
 | `SECRET_TOKEN` | yes | Bearer token for write endpoints |
-| `ANTHROPIC_API_KEY` | for Claude | Anthropic API key |
-| `GOOGLE_API_KEY` | for Gemini | Google API key |
+| `OPENROUTER_API_KEY` | yes | OpenRouter API key (all AI calls go through it) |
 | `NOTES_DIR` | yes | Root directory (contains inbox/, pending/, tex/, manual_review/) |
 | `DEBUG_MODEL` | no | Model ID for the debugger's AI fix loop (empty = no AI debug) |
 | `DEBUG_ITERS` | no | Max AI debug attempts per file (default: 3) |
 
 ## Key notes
 
-- Adding a new AI provider: add a client class extending `BaseAIClient` with a `MODELS: list[str]` attribute to `llm/`, then register it in `llm/__init__.py`. The frontend and validation pick it up automatically.
+- All models are accessed through OpenRouter. The available model list is fetched from OpenRouter at first use and cached per process — restart workers/API to pick up newly published models.
 - The worker derives subdirectories from the job file's position relative to `INBOX_DIR`, so `INBOX_DIR/foo/bar/01.job` produces `PENDING_DIR/foo/bar/01.tex` and eventually `TEX_DIR/foo/bar/01.tex`.
 - LaTeX output is **body-only** (no `\documentclass`, no `\begin{document}`). The system prompt instructs the model to start with `\chapter`.

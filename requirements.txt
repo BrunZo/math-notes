@@ -1,7 +1,6 @@
 fastapi
 uvicorn[standard]
-anthropic
-google-genai
+openrouter
 jinja2
 python-multipart
 pymupdf

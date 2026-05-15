@@ -15,7 +15,7 @@ from typing import Callable
 
 from config.paths import MANUAL_REVIEW_DIR, PENDING_DIR, TEX_DIR
 from latex.compile import compile_single
-from llm import MODEL_REGISTRY
+from llm import OpenRouterClient, list_models
 from workflow.base import Worker, setup_logging
 from workflow.testing.config import DEBUG_SYSTEM_PROMPT
 from workflow.testing.log_parser import parse_errors
@@ -73,7 +73,7 @@ def debugger_process(
         errors = parse_errors(result.stderr, line_offset=result.line_offset)
         log.warning("compile failed for %s: %d error(s)", rel, len(errors))
 
-        if not debug_model or debug_model not in MODEL_REGISTRY:
+        if not debug_model or debug_model not in list_models():
             _move_tex(tex_path, pending_dir, review_dir)
             log.info("no debug model configured, moved %s to review", rel)
             return
@@ -92,7 +92,7 @@ def debugger_process(
             + f"\n\nSNIPPET (lines {start + 1}-{end}):\n" + snippet
         )
 
-        client = MODEL_REGISTRY[debug_model]()
+        client = OpenRouterClient()
 
         for attempt in range(1, debug_iters + 1):
             try:
