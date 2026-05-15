@@ -56,7 +56,8 @@ workflow/repr/extractor.py  (poll loop)
 **`workflow/`** — background workers and AI parsers.
 - `base.py` — generic `Worker` dataclass (poll loop), `setup_logging`.
 - `utils.py` — shared helpers (`glob_finder`, `stale_tex_finder`).
-- `ingestion/parser.py` — parser worker: polls INBOX_DIR for `*.job` files, transcribes images, writes `.tex` to PENDING_DIR.
+- `ingestion/parser.py` — parser worker: polls INBOX_DIR for `*.job` files, transcribes images and/or text inputs, writes `.tex` to PENDING_DIR.
+- `ingestion/extractors.py` — text extraction by extension (`.txt`, `.md`, `.docx`, `.pdf` text layer) and PDF text-detection helper.
 - `ingestion/config.py` — system prompt builder (`build_prompt(fidelity)`), fidelity blocks, `LATEX_CONSTRAINTS`.
 - `testing/debugger.py` — compile + AI debug worker: polls PENDING_DIR for `*.tex`, moves to TEX_DIR or MANUAL_REVIEW_DIR. Configured via `DEBUG_MODEL` and `DEBUG_ITERS` env vars.
 - `testing/config.py` — `DEBUG_SYSTEM_PROMPT` (includes preamble from `templates/load_preamble.py`).
@@ -79,11 +80,16 @@ A `.job` file is JSON placed in `INBOX_DIR` by the API:
 {
   "model": "anthropic/claude-3.5-sonnet",
   "fidelity": "standard",
-  "images": ["01_01.png", "01_02.png"]
+  "files": ["01_01.png", "01_02.txt", "01_03.docx"]
 }
 ```
 
-Images are listed relative to the job file's directory.
+Files are listed relative to the job file's directory. Accepted extensions:
+- Images (`.jpg`, `.jpeg`, `.png`, `.webp`) — sent multimodally.
+- Text (`.txt`, `.md`, `.docx`, and `.pdf` whose text layer is non-trivial) — extracted at parse time and concatenated as text content.
+- `.pdf` without an extractable text layer — rasterized to PNG pages at upload time.
+
+Image and text inputs may be mixed in a single job.
 
 ## Environment variables
 
